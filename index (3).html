@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>협력의 지도 — 반복 사회적 딜레마 실험실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#101619; --panel:#182126; --panel2:#1E2A30;
+  --line:#2E3F45; --paper:#E4E8E1; --muted:#7E9296;
+  --warn:#E8B64C; --bad:#D4574E; --good:#6FBF8E;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --sans:'IBM Plex Sans KR',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--ink);color:var(--paper);font-family:var(--sans);
+  line-height:1.6;padding:24px 20px 60px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto}
+header{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:26px}
+h1{font-size:clamp(22px,4vw,30px);font-weight:700;letter-spacing:-.02em}
+.sub{font-family:var(--mono);font-size:12px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px}
+.q{color:var(--muted);font-size:14px;margin-top:6px;max-width:64ch}
+.cols{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:22px;align-items:start}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:18px}
+.card h2{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.14em;margin-bottom:14px;
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.opp{display:flex;align-items:center;gap:10px;margin-bottom:4px;min-height:30px}
+.swatch{width:12px;height:12px;border-radius:2px;flex:none}
+.swatch.blind{background:transparent;border:1px dashed var(--muted)}
+.oppname{font-size:19px;font-weight:600}
+.oppname.blind{font-family:var(--mono);color:var(--muted);letter-spacing:.18em}
+.oppdesc{font-size:13px;color:var(--muted);min-height:40px;margin-bottom:12px}
+.rounds{font-family:var(--mono);font-size:12px;color:var(--muted);
+  padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.score{display:flex;margin-bottom:12px;font-family:var(--mono)}
+.score div{flex:1}
+.score .lbl{font-size:10px;color:var(--muted);letter-spacing:.1em}
+.score .val{font-size:26px;font-weight:600}
+.score .val.neg{color:var(--bad)}
+.meter{font-family:var(--mono);font-size:11px;margin-bottom:14px;
+  display:flex;flex-direction:column;gap:4px}
+.meter span{color:var(--muted)}
+.meter b{color:var(--paper);font-weight:500}
+.meter .hot{color:var(--warn)} .meter .burn{color:var(--bad)}
+.scene{background:var(--panel2);border:1px solid var(--line);border-left:2px solid var(--warn);
+  border-radius:3px;padding:13px 14px;margin-bottom:12px}
+.scene .tagline{font-family:var(--mono);font-size:10px;color:var(--warn);
+  letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+.scene p{font-size:14px}
+button{font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;
+  border-radius:3px;padding:13px 10px;transition:.15s;border:1px solid}
+button:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
+button:disabled{opacity:.35;cursor:not-allowed}
+.choices{display:flex;flex-direction:column;gap:9px;margin-bottom:16px}
+.opt{text-align:left;font-size:14px;font-weight:500;line-height:1.45;padding:12px 14px;
+  display:flex;gap:11px;align-items:flex-start}
+.opt .k{font-family:var(--mono);font-size:11px;font-weight:600;flex:none;
+  padding-top:2px;opacity:.75}
+.b-c{background:transparent;border-color:var(--good);color:var(--good)}
+.b-c:hover:not(:disabled){background:rgba(111,191,142,.14)}
+.b-d{background:transparent;border-color:var(--bad);color:var(--bad)}
+.b-d:hover:not(:disabled){background:rgba(212,87,78,.14)}
+.b-next{width:100%;background:var(--paper);border-color:var(--paper);color:var(--ink);margin-bottom:16px}
+.b-next:hover{background:#fff}
+.b-ghost{background:transparent;border-color:var(--line);color:var(--muted);
+  font-size:12px;font-weight:500;padding:9px 14px}
+.b-ghost:hover{border-color:var(--muted);color:var(--paper)}
+.guess{background:var(--panel2);border:1px solid var(--line);border-radius:3px;
+  padding:14px;margin-bottom:16px}
+.guess p{font-size:13px;margin-bottom:10px}
+select{width:100%;font-family:var(--sans);font-size:14px;padding:10px;
+  background:var(--ink);color:var(--paper);border:1px solid var(--line);
+  border-radius:3px;margin-bottom:9px}
+select:focus-visible{outline:2px solid var(--warn);outline-offset:1px}
+.guess-row{display:grid;grid-template-columns:1fr auto;gap:8px}
+.b-guess{background:var(--warn);border-color:var(--warn);color:var(--ink);font-size:14px;padding:10px}
+.b-guess:hover{background:#F0C566}
+.verdict{background:var(--panel2);border-left:2px solid var(--muted);
+  padding:11px 13px;font-size:13px;margin-bottom:14px}
+.verdict.hit{border-left-color:var(--good)}
+.verdict.miss{border-left-color:var(--bad)}
+.verdict b{display:block;margin-bottom:2px}
+.log{font-family:var(--mono);font-size:11.5px;max-height:200px;overflow-y:auto;
+  border-top:1px solid var(--line);padding-top:10px}
+.log-row{display:flex;gap:7px;padding:3px 0;color:var(--muted);align-items:baseline}
+.log .n{width:20px;flex:none}
+.log .sc{flex:none;width:52px;color:#5E7276;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-weight:600}
+.tag.C{color:var(--good)} .tag.D{color:var(--bad)}
+.pen{color:var(--bad);margin-left:auto;font-weight:600}
+.map{display:grid;grid-template-columns:repeat(20,1fr);gap:2px;aspect-ratio:1;margin-bottom:16px}
+.plot{background:var(--panel2);border-radius:1px;transition:background-color .6s ease}
+@media(prefers-reduced-motion:reduce){.plot{transition:none}}
+.empty{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;padding:26px 0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:right;
+  text-transform:uppercase;letter-spacing:.1em;padding:0 0 8px;font-weight:500}
+th:first-child,td:first-child{text-align:left}
+td{padding:6px 0;border-top:1px solid var(--line);text-align:right;
+  font-family:var(--mono);font-variant-numeric:tabular-nums}
+td:first-child{font-family:var(--sans)}
+td.neg{color:var(--bad)}
+.name{display:flex;align-items:center;gap:8px}
+.unseen{color:var(--muted);font-size:11px}
+.bar{height:3px;background:var(--line);margin-top:3px;border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%}
+.world{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.wgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:7px;margin-bottom:10px}
+.wm{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.wm .pair{display:flex;align-items:center;gap:3px;margin-bottom:3px}
+.wm .pair i{width:8px;height:8px;border-radius:2px;display:block}
+.wm .pair em{font-style:normal;opacity:.5}
+.wbar{height:2px;background:var(--line);border-radius:2px;overflow:hidden}
+.wbar i{display:block;height:100%;background:var(--muted)}
+.wlog{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.wlog div{padding:1px 0;display:flex;gap:6px;align-items:center}
+.wlog s{text-decoration:none;opacity:.45}
+.wlog b{font-weight:500;color:var(--paper)}
+.wlog b.neg{color:var(--bad)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.note{font-size:12px;color:var(--muted);margin-top:14px;max-width:72ch}
+.rules{font-size:12px;color:var(--muted);margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.rules b{color:var(--paper)}
+.gate{position:fixed;inset:0;background:rgba(16,22,25,.97);z-index:99;
+  display:flex;align-items:center;justify-content:center;padding:24px;overflow-y:auto}
+.gate .box{max-width:520px;background:var(--panel);border:1px solid var(--line);
+  border-radius:4px;padding:26px}
+.gate h3{font-size:19px;font-weight:700;margin-bottom:4px}
+.gate .pid{font-family:var(--mono);font-size:12px;color:var(--warn);margin-bottom:16px}
+.gate ul{list-style:none;font-size:13.5px;color:var(--muted);margin-bottom:18px}
+.gate li{padding:5px 0 5px 16px;position:relative}
+.gate li::before{content:'·';position:absolute;left:4px;color:var(--warn)}
+.gate li b{color:var(--paper);font-weight:500}
+.gate .b-next{margin:0}
+.gate .off{font-size:12px;color:var(--muted);margin-top:12px;text-align:center}
+.sync{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px;
+  display:flex;align-items:center;gap:6px}
+.sync i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;flex:none}
+.sync i.ok{background:var(--good)} .sync i.wait{background:var(--warn)} .sync i.err{background:var(--bad)}
+.frame{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="gate" id="gate" style="display:none"><div class="box">
+  <h3>실험 참가 안내</h3>
+  <p class="pid" id="gatePid"></p>
+  <ul>
+    <li>이 게임은 <b>어떤 전략이 유리한지</b>를 알아보는 학생 연구 프로젝트입니다.</li>
+    <li>기록되는 것: <b>매 라운드의 선택, 상황 종류, 점수, 결정에 걸린 시간</b>.</li>
+    <li>기록되지 않는 것: <b>이름, 이메일, 위치, 그 밖의 어떤 개인정보도</b>.
+        위에 있는 참가 코드만 붙습니다.</li>
+    <li>데이터는 연구자의 구글 스프레드시트에 저장되며 <b>이 프로젝트 발표에만</b> 쓰입니다.</li>
+    <li>언제든 창을 닫으면 참여가 끝납니다. 불이익은 없습니다.</li>
+  </ul>
+  <button class="b-next" id="btnConsent">이해했고, 참여합니다</button>
+  <p class="off" id="gateOff"></p>
+</div></div>
+
+<div class="wrap">
+<header>
+  <p class="sub">Iterated Social Dilemma · Blind Field Study</p>
+  <h1>협력의 지도</h1>
+  <p class="q">매 라운드 상황이 바뀐다. 상대가 어떤 전략인지는 판이 끝나야 공개된다.
+     배신이 쌓이면 관계가 무너지고 점수는 음수로 떨어진다.
+     전략은 얻은 점수만큼 땅을 가진다.</p>
+</header>
+<div class="cols">
+  <section class="card">
+    <h2><span>대국</span><span id="guessStat"></span></h2>
+    <div class="opp"><span class="swatch blind" id="oppSw"></span>
+      <span class="oppname blind" id="oppName">???</span></div>
+    <p class="oppdesc" id="oppDesc"></p>
+    <p class="rounds" id="roundInfo"></p>
+    <div class="score">
+      <div><div class="lbl">나</div><div class="val" id="myScore">0</div></div>
+      <div><div class="lbl">상대</div><div class="val" id="opScore">0</div></div>
+    </div>
+    <div class="meter" id="meter"></div>
+    <div id="verdict"></div>
+    <div id="guessBox"></div>
+    <div id="sceneBox"></div>
+    <div class="choices" id="choices">
+      <button class="opt b-c" id="btnC"><span class="k">1</span><span id="txtC"></span></button>
+      <button class="opt b-d" id="btnD"><span class="k">2</span><span id="txtD"></span></button>
+    </div>
+    <button class="b-next" id="btnNext" style="display:none">다음 상대</button>
+    <div class="log" id="log"></div>
+  </section>
+  <section class="card">
+    <h2><span>필지 지도 · 400칸</span><span id="mapStat"></span></h2>
+    <div class="world" id="worldBox"></div>
+    <div class="map" id="map"></div>
+    <div id="rank"></div>
+    <div class="frame" id="frameBox"></div>
+    <div class="tools">
+      <button class="b-ghost" id="btnLeague">표본 늘리기</button>
+      <button class="b-ghost" id="btnExport">데이터 내보내기</button>
+      <button class="b-ghost" id="btnReset">기록 초기화</button>
+    </div>
+    <div class="sync" id="syncBox"></div>
+    <div class="rules" id="rulesBox"></div>
+  </section>
+</div>
+</div>
+<script>
+/* ═══════════════════════════════════════════════
+   1. 규칙 — 여기 숫자만 바꾸면 전체 균형이 바뀐다
+   ═══════════════════════════════════════════════ */
+const PAYOFF = { CC:[3,3], CD:[0,5], DC:[5,0], DD:[1,1] };  // [내 점수, 상대 점수]
+
+const RULES = {
+  roundsMin: 20, roundsMax: 30,   // 한 판의 라운드 수 (비공개)
+  // ① 착취 벌점 — 상대가 협력하는데 내가 배신한 횟수가 쌓이면 나만 감점
+  eFree: 3, eStep: 1, eCap: 4,
+  // ② 갈등 벌점 — 상호 배신이 연속되면 양쪽 감점
+  sFree: 4, sStep: 1, sCap: 3,
+  // ③ 보복자 경감 — 갈등을 먼저 일으키지 않은 쪽은 벌점의 25%만 받는다
+  retal: 0.25,
+};
+
+/* 연구자 모드 — 주소 끝에 ?100916 을 붙이면 켜진다.
+   그냥 열면        → 참가자용. 표본 늘리기·기록 초기화 버튼이 숨겨진다. 코드는 P-로 시작.
+   ?100916 을 붙이면 → 연구자용. 모든 버튼이 보인다. 코드는 R-로 시작해 시트에서 걸러낼 수 있다.
+   파일은 하나만 유지하면 된다. 이 값을 바꾸면 연구자 주소도 함께 바뀐다. */
+const RESEARCH_KEY = '100916';
+const RESEARCHER = location.search.includes(RESEARCH_KEY);
+
+// 데이터 전송 — Apps Script 웹앱 주소와 토큰
+const SYNC = {
+  url:   'https://script.google.com/macros/s/AKfycbxnyDXVyfKiN_cwi10Jh94djvBpsHyCPR12rW1ZIk79vcnw4nkX1GAf1UVZSHlSbdHP/exec',
+  token: '22woodstock',        // Apps Script의 TOKEN과 반드시 같아야 한다
+  on:    true,                 // false로 두면 전송 없이 혼자 테스트할 수 있다
+  batch: 400,                  // 한 번에 보낼 최대 행 수
+};
+
+// 살아 있는 세계 — 내가 두는 동안 컴퓨터끼리도 계속 대국한다
+const WORLD = {
+  live: 6,      // 동시에 진행 중인 컴퓨터끼리의 대국 수
+  step: 1,      // 내가 한 라운드 둘 때 세계가 나아가는 라운드 수
+  keepLog: 4,   // 최근 결과 몇 개를 보여줄지
+};
+
+/* ═══════════════════════════════════════════════
+   2. 상황 카드 — 협력/배신이 매 라운드 다른 옷을 입는다
+   구조는 항상 같다. 바뀌는 건 문구뿐이다.
+   ═══════════════════════════════════════════════ */
+const SCENES = [
+  { t:'학교', s:'조별 과제 마감이 내일이다.',
+    c:'밤을 새워 정리한 자료를 조원 전체에게 공유한다.',
+    d:'남이 올린 자료만 받아 두고 내 몫은 미룬다.' },
+  { t:'학교', s:'혼자 정리한 시험 족보가 있다.',
+    c:'반 전체가 볼 수 있게 올린다.',
+    d:'없다고 말하고 나만 본다.' },
+  { t:'학교', s:'발표가 끝나고 공로를 적어 내야 한다.',
+    c:'도와준 사람들 이름을 함께 올린다.',
+    d:'내 이름만 올린다.' },
+  { t:'학교', s:'익명으로 동료 평가를 쓴다.',
+    c:'본 대로 공정하게 쓴다.',
+    d:'경쟁자를 낮게 매긴다.' },
+  { t:'공공', s:'급식 줄이 길게 늘어서 있다.',
+    c:'줄 맨 뒤에 선다.',
+    d:'아는 사람 앞에 끼어든다.' },
+  { t:'공공', s:'주인 없는 무인 가게에서 물건을 집었다.',
+    c:'가격표대로 돈을 넣는다.',
+    d:'적게 넣고 나온다.' },
+  { t:'공공', s:'공유 자전거를 다 탔다.',
+    c:'반납대에 제대로 세운다.',
+    d:'다음에 편하게 쓰려고 골목에 숨겨 둔다.' },
+  { t:'공공', s:'지하철에 자리가 하나 남았다.',
+    c:'더 필요해 보이는 사람에게 양보한다.',
+    d:'먼저 가서 앉는다.' },
+  { t:'자원', s:'도서관 콘센트가 하나뿐이고 뒤에 대기가 있다.',
+    c:'충전이 끝나면 바로 자리를 비운다.',
+    d:'다 됐어도 자리를 계속 잡고 있는다.' },
+  { t:'자원', s:'동아리 예산 신청서를 쓴다.',
+    c:'실제로 필요한 만큼만 적는다.',
+    d:'깎일 걸 대비해 넉넉히 부풀린다.' },
+  { t:'자원', s:'가뭄으로 마을 우물에 배급제가 걸렸다.',
+    c:'정해진 양만 길어 간다.',
+    d:'밤에 몰래 더 퍼 간다.' },
+  { t:'자원', s:'회비를 정산하는데 계산이 애매하다.',
+    c:'정확히 나눠 돌려준다.',
+    d:'모르는 척 조금 더 챙긴다.' },
+  { t:'관계', s:'비를 맞으며 우산 하나를 나눠 쓴다.',
+    c:'가운데로 들어 반씩 젖는다.',
+    d:'내 쪽으로 당겨 상대만 젖게 한다.' },
+  { t:'관계', s:'중고로 팔 물건에 흠집이 있다.',
+    c:'미리 알리고 값을 깎는다.',
+    d:'사진 각도로 가린다.' },
+  { t:'관계', s:'친구에 대한 소문을 들었다.',
+    c:'옮기지 않고 덮는다.',
+    d:'재미 삼아 퍼뜨린다.' },
+  { t:'위기', s:'구조 보트에 자리가 모자라고 합의된 순서가 있다.',
+    c:'합의한 순서대로 태운다.',
+    d:'우리 쪽 사람을 먼저 밀어 넣는다.' },
+  { t:'위기', s:'백신이 지역별로 배분되었다.',
+    c:'배정된 물량만 가져간다.',
+    d:'우리 지역 몫을 더 챙긴다.' },
+  { t:'위기', s:'산불이 번져 공동 방화선을 파야 한다.',
+    c:'다 같이 마을 방화선을 판다.',
+    d:'내 밭 주변만 파고 빠진다.' },
+];
+const TAGS = [...new Set(SCENES.map(s => s.t))];
+
+/* ═══════════════════════════════════════════════
+   3. 전략 12종 — move(me, opp) → 'C' 또는 'D'
+   전략은 상황 문구를 보지 않는다. 구조만 본다.
+   ═══════════════════════════════════════════════ */
+const STRATEGIES = {
+  ALLC:  { name:'무조건 협력', color:'#6FBF8E',
+           desc:'무슨 일이 있어도 협력한다. 착취당하기 쉽다.',
+           move:() => 'C' },
+  ALLD:  { name:'무조건 배신', color:'#D4574E',
+           desc:'절대 협력하지 않는다. 제재가 있는 세계에서는 자멸한다.',
+           move:() => 'D' },
+  TFT:   { name:'팃포탯', color:'#E8B64C',
+           desc:'처음엔 협력, 이후엔 상대가 직전에 한 것을 그대로 따라 한다.',
+           move:(me,opp) => opp.length === 0 ? 'C' : opp[opp.length-1] },
+  STFT:  { name:'의심 많은 팃포탯', color:'#E0806B',
+           desc:'첫 수만 배신하고, 이후에는 팃포탯처럼 행동한다.',
+           move:(me,opp) => me.length === 0 ? 'D' : opp[opp.length-1] },
+  TF2T:  { name:'두 번 참는 팃포탯', color:'#8FA9E0',
+           desc:'상대가 연속 두 번 배신할 때만 보복한다. 더 너그럽다.',
+           move:(me,opp) => (opp.length>=2 && opp[opp.length-1]==='D'
+                             && opp[opp.length-2]==='D') ? 'D' : 'C' },
+  GTFT:  { name:'너그러운 팃포탯', color:'#A8CF6B',
+           desc:'배신당해도 열 번에 한 번쯤 용서하고 협력한다.',
+           move:(me,opp) => {
+             if (opp.length === 0) return 'C';
+             return opp[opp.length-1] === 'D'
+                    ? (Math.random() < 0.1 ? 'C' : 'D') : 'C'; } },
+  GRIM:  { name:'그림 트리거', color:'#B07CC6',
+           desc:'한 번이라도 배신당하면 끝까지 배신한다. 용서가 없다.',
+           move:(me,opp) => opp.includes('D') ? 'D' : 'C' },
+  PAVLOV:{ name:'파블로프', color:'#4FB3C4',
+           desc:'결과가 좋으면 하던 대로, 나쁘면 바꾼다. (승리-유지 / 패배-전환)',
+           move:(me,opp) => {
+             if (me.length === 0) return 'C';
+             const my = me[me.length-1];
+             return opp[opp.length-1] === 'C' ? my : (my === 'C' ? 'D' : 'C'); } },
+  PROBER:{ name:'탐색꾼', color:'#C96FA0',
+           desc:'초반에 배신을 한 번 찔러 본다. 상대가 참으면 계속 착취하고, 되받아치면 팃포탯으로 돌아선다.',
+           move:(me,opp) => {
+             const n = me.length;
+             if (n === 0) return 'D';
+             if (n < 3)  return 'C';
+             return (opp[1] === 'C' && opp[2] === 'C') ? 'D' : opp[n-1]; } },
+  MAJO:  { name:'다수결', color:'#D9A05B',
+           desc:'지금까지 상대의 협력이 배신보다 많거나 같으면 협력한다.',
+           move:(me,opp) => {
+             const c = opp.filter(x => x === 'C').length;
+             return c >= opp.length - c ? 'C' : 'D'; } },
+  ALT:   { name:'번갈이', color:'#6E7FC4',
+           desc:'협력과 배신을 한 번씩 번갈아 낸다. 규칙적이라 읽히기 쉽다.',
+           move:(me) => me.length % 2 === 0 ? 'C' : 'D' },
+  RAND:  { name:'랜덤', color:'#75868A',
+           desc:'매번 동전을 던진다. 비교 기준선.',
+           move:() => Math.random() < 0.5 ? 'C' : 'D' },
+};
+const KEYS  = Object.keys(STRATEGIES);
+const HUMAN = { name:'나', color:'#F2EFE3' };
+
+/* ═══════════════════════════════════════════════
+   4. 제재 계산 — 이 게임의 핵심
+   반환: { pa, pb } 이번 라운드에 각자 깎일 점수
+   st = { ea, eb, spiral, inst } 을 직접 갱신한다
+   ═══════════════════════════════════════════════ */
+function penalty(ma, mb, st, prev) {
+  let pa = 0, pb = 0;
+
+  // ① 착취 — 상대가 협력하는데 나만 배신한 경우, 누적될수록 나만 감점
+  if (ma === 'D' && mb === 'C') { st.ea++;
+    if (st.ea > RULES.eFree)
+      pa += Math.round(Math.min(RULES.eCap, (st.ea - RULES.eFree) * RULES.eStep)); }
+  if (mb === 'D' && ma === 'C') { st.eb++;
+    if (st.eb > RULES.eFree)
+      pb += Math.round(Math.min(RULES.eCap, (st.eb - RULES.eFree) * RULES.eStep)); }
+
+  // ② 갈등 — 상호 배신이 연속되면 관계가 무너지고 양쪽이 감점
+  if (ma === 'D' && mb === 'D') {
+    if (st.spiral === 0) {                    // 갈등이 시작된 라운드 → 도발자 판정
+      if (!prev) st.inst = 'both';            // 첫 라운드부터 맞배신 = 둘 다 책임
+      else if (prev.a === 'D' && prev.b === 'C') st.inst = 'a';
+      else if (prev.b === 'D' && prev.a === 'C') st.inst = 'b';
+      else st.inst = 'both';                  // 협력하다 동시에 깨짐 = 둘 다 책임
+    }
+    st.spiral++;
+    if (st.spiral > RULES.sFree) {
+      const q = Math.min(RULES.sCap, (st.spiral - RULES.sFree) * RULES.sStep);
+      // ③ 도발하지 않은 쪽은 25%만 — 보복을 처벌하지 않기 위한 장치
+      pa += Math.round(q * (st.inst === 'b' ? RULES.retal : 1));
+      pb += Math.round(q * (st.inst === 'a' ? RULES.retal : 1));
+    }
+  } else { st.spiral = 0; st.inst = null; }
+
+  return { pa, pb };
+}
+function freshState() { return { ea:0, eb:0, spiral:0, inst:null }; }
+
+/* ═══════════════════════════════════════════════
+   4-B. 전송 — 참가 코드, 동의, 큐, 재시도
+   판이 끝날 때 20~30행을 한 번에 보낸다.
+   라운드마다 보내면 버튼 누를 때마다 렉이 걸리고 할당량도 금방 찬다.
+   ═══════════════════════════════════════════════ */
+const META_KEY = 'coop-meta-v3', Q_KEY = 'coop-queue-v3';
+const RULES_VER = `e${RULES.eFree}-${RULES.eStep}-${RULES.eCap}_s${RULES.sFree}-${RULES.sStep}-${RULES.sCap}_r${RULES.retal}_w${WORLD.live}`;
+let meta = null, syncState = { ok:null, msg:'' }, sending = false;
+
+function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function safeSet(k,v) { try { localStorage.setItem(k,v); } catch (e) {} }
+
+function newPid() {
+  const ch = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // 헷갈리는 O/0/I/1 제외
+  let s = ''; for (let i=0;i<4;i++) s += ch[Math.floor(Math.random()*ch.length)];
+  return (RESEARCHER ? 'R-' : 'P-') + s;           // 시트에서 연구자 테스트를 걸러내기 위해
+}
+function loadMeta() {
+  const raw = safeGet(META_KEY);
+  meta = raw ? JSON.parse(raw) : null;
+  if (!meta || !meta.pid)
+    meta = { pid:newPid(), startedAt:new Date().toISOString(), consentAt:null, matchNo:0 };
+  // 같은 브라우저로 모드를 바꿔 열면 코드도 새로 발급한다
+  const want = RESEARCHER ? 'R-' : 'P-';
+  if (!meta.pid.startsWith(want))
+    meta = { pid:newPid(), startedAt:new Date().toISOString(), consentAt:null, matchNo:0 };
+  saveMeta();
+}
+function saveMeta() { safeSet(META_KEY, JSON.stringify(meta)); }
+
+function loadQueue() { try { return JSON.parse(safeGet(Q_KEY) || '[]'); } catch (e) { return []; } }
+function saveQueue(q) { safeSet(Q_KEY, JSON.stringify(q)); }
+function enqueue(sheet, row) {
+  const q = loadQueue(); q.push({ s:sheet, r:row }); saveQueue(q); renderSync();
+}
+function stamp() { return new Date().toISOString(); }
+
+async function flush() {
+  if (sending || !SYNC.on || !SYNC.url) { renderSync(); return; }
+  const q = loadQueue();
+  if (!q.length) { renderSync(); return; }
+  sending = true; syncState = { ok:null, msg:'보내는 중' }; renderSync();
+
+  const take = q.slice(0, SYNC.batch), batch = {};
+  take.forEach(it => { (batch[it.s] = batch[it.s] || []).push(it.r); });
+  try {
+    const res = await fetch(SYNC.url, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },   // 사전 요청을 피하려고 text/plain
+      body: JSON.stringify({ token: SYNC.token, batch }) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || '거부됨');
+    saveQueue(loadQueue().slice(take.length));                  // 보낸 만큼만 제거
+    syncState = { ok:true, msg:`${j.written}행 전송됨` };
+  } catch (err) {
+    syncState = { ok:false, msg:'전송 실패, 다음에 재시도' };    // 큐는 그대로 남는다
+  }
+  sending = false; renderSync();
+}
+
+/* ═══════════════════════════════════════════════
+   5. 누적 데이터
+   ═══════════════════════════════════════════════ */
+const SAVE_KEY = 'coop-map-v3';
+let stats, guessLog, frames;
+
+function blank() {
+  const s = {};
+  [...KEYS, 'HUMAN'].forEach(k => s[k] = { score:0, rounds:0, matches:0, coops:0 });
+  return s;
+}
+function blankFrames() {                      // 상황별 사용자 협력률 = 프레이밍 효과
+  const f = {}; TAGS.forEach(t => f[t] = { c:0, n:0 }); return f;
+}
+function load() {
+  stats = blank(); guessLog = { correct:0, total:0 }; frames = blankFrames();
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) { const d = JSON.parse(raw);
+      Object.assign(stats, d.stats || {});
+      Object.assign(guessLog, d.guessLog || {});
+      Object.assign(frames, d.frames || {}); }
+  } catch (e) { console.warn('저장소를 쓸 수 없어 이번 세션에만 기록한다.'); }
+}
+function save() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ stats, guessLog, frames })); } catch (e) {}
+}
+function record(key, score, rounds, coops) {
+  const s = stats[key];
+  s.score += score; s.rounds += rounds; s.matches += 1; s.coops += coops;
+}
+
+/* ═══════════════════════════════════════════════
+   6. 컴퓨터끼리 자동 대결
+   ═══════════════════════════════════════════════ */
+const randRounds = () =>
+  RULES.roundsMin + Math.floor(Math.random() * (RULES.roundsMax - RULES.roundsMin + 1));
+
+function autoMatch(aKey, bKey, n) {
+  const A = [], B = [], st = freshState();
+  let sa = 0, sb = 0, prev = null;
+  for (let i = 0; i < n; i++) {
+    const a = STRATEGIES[aKey].move(A, B);
+    const b = STRATEGIES[bKey].move(B, A);
+    const p = PAYOFF[a + b];
+    const { pa, pb } = penalty(a, b, st, prev);
+    sa += p[0] - pa; sb += p[1] - pb;
+    A.push(a); B.push(b); prev = { a, b };
+  }
+  record(aKey, sa, n, A.filter(x => x === 'C').length);
+  record(bKey, sb, n, B.filter(x => x === 'C').length);
+}
+function runLeague(reps = 12) {
+  for (const a of KEYS) for (const b of KEYS)
+    for (let r = 0; r < reps; r++) autoMatch(a, b, randRounds());
+  save(); renderMap(); renderRank();
+}
+
+/* ═══════════════════════════════════════════════
+   6-B. 살아 있는 세계 — 노출 균등 설계
+   
+   공정성의 핵심은 "모두가 항상 같은 라운드 수를 갖는다"이다.
+   그래서 세계를 이렇게 짰다.
+   
+   · 12전략이 6쌍으로 나뉘어 동시에 대국한다. 노는 전략이 없다.
+   · 나는 그중 한 전략의 복제본과 둔다. (원본은 원본대로 리그를 뛴다)
+   · 내가 한 라운드 두면 6쌍 전부가 한 라운드씩 나아간다.
+     → 매 순간 12전략과 나, 13명 모두 라운드 수가 정확히 같다.
+   · 모든 대국이 같은 길이라서 한꺼번에 끝나고, 그때 땅이 재분배된다.
+   · 짝짓기는 원형 방식 라운드로빈이라 11사이클이면 전원이 전원을 한 번씩 만난다.
+   
+   노출이 같으므로 누적 총점의 비율은 곧 실력의 비율이다.
+   많이 만나서 땅이 커지는 일이 구조적으로 불가능해진다.
+   ═══════════════════════════════════════════════ */
+let world = [], worldLog = [], sched = [], schedIdx = 0;
+
+/* 원형 방식 라운드로빈 — 한 사이클에 6쌍, 11사이클이면 전원 대진 완료 */
+function buildSchedule(keys) {
+  const arr = keys.slice();
+  for (let i = arr.length - 1; i > 0; i--) {            // 순서를 섞어 편향을 없앤다
+    const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  const fixed = arr[0], rot = arr.slice(1), out = [];
+  for (let r = 0; r < arr.length - 1; r++) {
+    const pairs = [[fixed, rot[0]]];
+    for (let i = 1; i < arr.length / 2; i++) pairs.push([rot[i], rot[rot.length - i]]);
+    out.push(pairs);
+    rot.unshift(rot.pop());
+  }
+  return out;
+}
+function newWorldCycle(len) {
+  if (!sched.length) sched = buildSchedule(KEYS);
+  const pairs = sched[schedIdx % sched.length];
+  world = pairs.map(([a, b]) => ({ a, b, A:[], B:[], st: freshState(),
+                                   prev: null, sa: 0, sb: 0, n: len }));
+}
+function advanceOne(w) {
+  const x = STRATEGIES[w.a].move(w.A, w.B);
+  const y = STRATEGIES[w.b].move(w.B, w.A);
+  const base = PAYOFF[x + y];
+  const { pa, pb } = penalty(x, y, w.st, w.prev);
+  w.sa += base[0] - pa; w.sb += base[1] - pb;
+  w.A.push(x); w.B.push(y); w.prev = { a:x, b:y };
+}
+function stepWorld() { world.forEach(advanceOne); }
+
+/* 사이클 종료 — 6쌍이 한꺼번에 결산된다 */
+function resolveWorld() {
+  worldLog = [];
+  world.forEach((w, idx) => {
+    record(w.a, w.sa, w.n, w.A.filter(z => z === 'C').length);
+    record(w.b, w.sb, w.n, w.B.filter(z => z === 'C').length);
+    enqueue('world', [`${meta.pid}-c${schedIdx}-${idx}`, stamp(), meta.pid,
+                      w.a, w.b, w.n, w.sa, w.sb, RULES_VER]);
+    worldLog.push({ a:w.a, b:w.b, sa:w.sa, sb:w.sb });
+  });
+  schedIdx++;
+}
+
+/* 노출이 정말 균등한지 스스로 점검한다 */
+function exposureCheck() {
+  const rs = [...KEYS, 'HUMAN'].map(k => stats[k].rounds);
+  const lo = Math.min(...rs), hi = Math.max(...rs);
+  return { lo, hi, even: lo === hi };
+}
+
+/* ═══════════════════════════════════════════════
+   7. 사람 vs 컴퓨터
+   ═══════════════════════════════════════════════ */
+let M = null;
+
+function pickScene(exclude) {
+  let s; do { s = SCENES[Math.floor(Math.random()*SCENES.length)]; }
+  while (SCENES.length > 1 && s === exclude);
+  return s;
+}
+function newMatch() {
+  meta.matchNo++; saveMeta();
+  const len = randRounds();                   // 내 판과 세계 사이클이 같은 길이다
+  newWorldCycle(len);
+  M = { no: meta.matchNo, key: KEYS[Math.floor(Math.random()*KEYS.length)], total: len,
+        me: [], op: [], myScore: 0, opScore: 0, done: false,
+        st: freshState(), prev: null, scene: null, tShown: 0 };
+  oppSw.className   = 'swatch blind';  oppSw.style.background = '';
+  oppName.className = 'oppname blind'; oppName.textContent = '???';
+  oppDesc.textContent = '상대 전략은 판이 끝난 뒤에 공개된다.';
+  setScore(myScore, 0); setScore(opScore, 0);
+  log.innerHTML = ''; verdict.innerHTML = ''; guessBox.innerHTML = '';
+  choices.style.display = 'flex'; btnNext.style.display = 'none';
+  btnC.disabled = btnD.disabled = false;
+  nextScene(); updateRounds(); renderMeter(); renderGuessStat(); renderWorld();
+}
+function nextScene() {
+  M.scene = pickScene(M.scene);
+  sceneBox.innerHTML = `<div class="scene"><div class="tagline">${M.scene.t}</div>
+    <p>${M.scene.s}</p></div>`;
+  txtC.textContent = M.scene.c;
+  txtD.textContent = M.scene.d;
+  M.tShown = performance.now();               // 반응 시간 측정 시작
+}
+function setScore(el, v) { el.textContent = v; el.className = 'val' + (v < 0 ? ' neg' : ''); }
+function updateRounds() {
+  roundInfo.textContent = M.done
+    ? `종료 · 총 ${M.total}라운드`
+    : `라운드 ${M.me.length + 1} · 총 라운드 수 비공개 (${RULES.roundsMin}~${RULES.roundsMax})`;
+}
+function renderMeter() {
+  if (M.done) { meter.innerHTML = ''; return; }
+  const { ea, eb, spiral } = M.st;
+  const eNext = ea + 1 > RULES.eFree
+    ? Math.round(Math.min(RULES.eCap, (ea + 1 - RULES.eFree) * RULES.eStep)) : 0;
+  const sNow = spiral > RULES.sFree
+    ? Math.min(RULES.sCap, (spiral - RULES.sFree) * RULES.sStep) : 0;
+  meter.innerHTML =
+    `<div><span>내 일방적 배신</span> <b class="${eNext?'hot':''}">${ea}회</b>
+      <span>${eNext ? `· 다음 배신은 -${eNext}점` : `· ${RULES.eFree}회까지는 벌점 없음`}</span></div>
+     <div><span>맞배신 연속</span> <b class="${sNow?'burn':''}">${spiral}회</b>
+      <span>${sNow ? `· 라운드마다 양쪽 -${sNow}점` : `· ${RULES.sFree}회 넘으면 양쪽 감점`}</span></div>
+     <div><span>상대의 일방적 배신</span> <b>${eb}회</b></div>`;
+}
+function play(myMove) {
+  const scene = M.scene;
+  const opMove = STRATEGIES[M.key].move(M.op, M.me);
+  const base = PAYOFF[myMove + opMove];
+  const { pa, pb } = penalty(myMove, opMove, M.st, M.prev);
+  M.myScore += base[0] - pa; M.opScore += base[1] - pb;
+  M.me.push(myMove); M.op.push(opMove); M.prev = { a: myMove, b: opMove };
+
+  frames[scene.t].n++; if (myMove === 'C') frames[scene.t].c++;   // 프레이밍 기록
+
+  enqueue('rounds', [
+    `${meta.pid}-m${M.no}-r${M.me.length}`, stamp(), meta.pid, M.no, M.me.length,
+    M.key, scene.t, SCENES.indexOf(scene), myMove, opMove,
+    base[0], pa, base[1], pb, M.myScore, M.opScore,
+    M.st.ea, M.st.eb, M.st.spiral,
+    Math.round(performance.now() - M.tShown), RULES_VER ]);
+
+  setScore(myScore, M.myScore); setScore(opScore, M.opScore);
+  const row = document.createElement('div');
+  row.className = 'log-row';
+  row.innerHTML = `<span class="n">${M.me.length}</span>
+    <span class="sc">${scene.t}</span>
+    <span>나 <b class="tag ${myMove}">${myMove==='C'?'협력':'배신'}</b></span>
+    <span>상대 <b class="tag ${opMove}">${opMove==='C'?'협력':'배신'}</b></span>
+    <span class="pen">${base[0]-pa>=0?'+':''}${base[0]-pa} / ${base[1]-pb>=0?'+':''}${base[1]-pb}${pa||pb?' ⚑':''}</span>`;
+  log.prepend(row);
+
+  stepWorld();                                  // 6쌍 전부 한 라운드씩 나아간다
+
+  if (M.me.length >= M.total) endMatch();
+  else { nextScene(); updateRounds(); renderMeter(); }
+}
+function endMatch() {
+  M.done = true;
+  // 내 점수만 지도에 반영한다. 내 상대는 그 전략의 복제본이고,
+  // 원본은 원본대로 리그에서 같은 수의 라운드를 뛰고 있다.
+  // 이렇게 해야 나를 만났다는 이유로 특정 전략만 노출이 늘어나지 않는다.
+  record('HUMAN', M.myScore, M.total, M.me.filter(x => x === 'C').length);
+  resolveWorld();
+  save(); updateRounds(); renderMeter();
+  sceneBox.innerHTML = '';
+  choices.style.display = 'none';
+  btnC.disabled = btnD.disabled = true;
+  askGuess();
+}
+function askGuess() {
+  const opts = KEYS.map(k => ({ k, n: STRATEGIES[k].name }))
+                   .sort((a,b) => a.n.localeCompare(b.n,'ko'));
+  guessBox.innerHTML = `<div class="guess">
+      <p>상대는 어떤 전략이었을까?</p>
+      <select id="guessSel">${opts.map(o => `<option value="${o.k}">${o.n}</option>`).join('')}</select>
+      <div class="guess-row">
+        <button class="b-guess" id="btnGuess">이걸로 확인</button>
+        <button class="b-ghost" id="btnSkip">모르겠다</button>
+      </div></div>`;
+  btnGuess.onclick = () => reveal(guessSel.value);
+  btnSkip.onclick  = () => reveal(null);
+}
+function reveal(guessKey) {
+  const s = STRATEGIES[M.key];
+  guessBox.innerHTML = '';
+  oppSw.className   = 'swatch';   oppSw.style.background = s.color;
+  oppName.className = 'oppname';  oppName.textContent = s.name;
+  oppDesc.textContent = s.desc;
+
+  let cls = '', head = '';
+  if (guessKey) { guessLog.total++;
+    if (guessKey === M.key) { guessLog.correct++; cls='hit'; head='맞혔다.'; }
+    else { cls='miss'; head = `${STRATEGIES[guessKey].name}이 아니라 ${s.name}이었다.`; }
+  } else head = `상대는 ${s.name}이었다.`;
+
+  const avg = M.myScore / M.total;
+  const perfect = PAYOFF.CC[0].toFixed(2);
+  const extra = M.myScore < 0
+    ? ' 관계가 완전히 무너져 점수가 마이너스로 끝났다.'
+    : (avg >= PAYOFF.CC[0] - 0.3 ? ' 거의 완전한 상호 협력이었다.' : '');
+  verdict.innerHTML = `<div class="verdict ${cls}"><b>${head}</b>
+    라운드당 평균 ${avg.toFixed(2)}점 — 끝까지 서로 협력했다면 ${perfect}점이었다.${extra}</div>`;
+
+  enqueue('matches', [
+    `${meta.pid}-m${M.no}`, stamp(), meta.pid, M.no, M.key, M.total,
+    M.myScore, M.opScore,
+    M.me.filter(x => x === 'C').length, M.op.filter(x => x === 'C').length,
+    guessKey || '', guessKey ? (guessKey === M.key ? 1 : 0) : '', RULES_VER ]);
+  flush();                                    // 판이 끝날 때 한 번에 보낸다
+
+  btnNext.style.display = 'block';
+  save(); renderGuessStat(); renderMap(); renderRank(); renderWorld();
+}
+function renderGuessStat() {
+  guessStat.textContent = guessLog.total
+    ? `정체 맞히기 ${guessLog.correct}/${guessLog.total}` : '';
+}
+
+/* ═══════════════════════════════════════════════
+   8. 면적 계산 — 누적 총점의 상대 비율로 땅을 나눈다
+   같은 상대를 또 만나면 그 전략 땅이 그만큼 더 커진다.
+   누적 총점이 음수인 전략은 땅을 한 칸도 갖지 못한다.
+   ═══════════════════════════════════════════════ */
+function allocate(vals, total) {
+  const v = vals.map(x => Math.max(0, x));
+  const sum = v.reduce((a,b) => a+b, 0);
+  if (sum <= 0) return v.map(() => 0);
+  const raw  = v.map(x => x / sum * total);
+  const base = raw.map(Math.floor);
+  const rem  = total - base.reduce((a,b) => a+b, 0);
+  const order = raw.map((r,i) => ({ i, f: r - Math.floor(r) })).sort((a,b) => b.f - a.f);
+  for (let k = 0; k < rem; k++) base[order[k % order.length].i]++;
+  return base;
+}
+function ranked() {
+  return [...KEYS, 'HUMAN']
+    .filter(k => stats[k].rounds > 0)
+    .map(k => ({ k,
+      label: k === 'HUMAN' ? HUMAN.name  : STRATEGIES[k].name,
+      color: k === 'HUMAN' ? HUMAN.color : STRATEGIES[k].color,
+      total: stats[k].score,                       // 땅의 기준
+      avg:   stats[k].score / stats[k].rounds,      // 강함의 기준
+      coop:  stats[k].coops / stats[k].rounds }))
+    .sort((a,b) => b.total - a.total);
+}
+
+/* ═══════════════════════════════════════════════
+   9. 화면 그리기
+   ═══════════════════════════════════════════════ */
+const plots = [];
+for (let i = 0; i < 400; i++) {
+  const d = document.createElement('div');
+  d.className = 'plot'; map.appendChild(d); plots.push(d);
+}
+let lastCells = null;
+
+function renderMap() {
+  const R = ranked();
+  const cells = allocate(R.map(r => r.total), 400);
+  let i = 0;
+  R.forEach((r, idx) => { for (let c = 0; c < cells[idx]; c++) plots[i++].style.background = r.color; });
+  while (i < 400) plots[i++].style.background = '';
+  const sum = R.reduce((a,r) => a + Math.max(0, r.total), 0);
+  mapStat.textContent = sum ? `누적 ${Math.round(sum).toLocaleString()}점` : '';
+  lastCells = cells;
+}
+
+function renderRank() {
+  const R = ranked();
+  const unseen = KEYS.filter(k => stats[k].rounds === 0);
+  let html = '';
+  if (!R.length) {
+    html = '<p class="empty">아직 기록이 없다. 한 판 두거나 자동 리그를 돌려라.</p>';
+  } else {
+    const cells = lastCells || allocate(R.map(r => r.total), 400);
+    const max = Math.max(...R.map(r => Math.max(0, r.total)), 1);
+    html = `<table><thead><tr>
+        <th>전략</th><th>칸</th><th>총점</th><th>평균</th><th>협력</th></tr></thead><tbody>
+      ${R.map((r,i) => `<tr>
+        <td><div class="name"><span class="swatch" style="background:${r.color}"></span>${r.label}</div>
+            <div class="bar"><i style="width:${Math.max(0,r.total)/max*100}%;background:${r.color}"></i></div></td>
+        <td>${cells[i]}</td>
+        <td class="${r.total<0?'neg':''}">${Math.round(r.total).toLocaleString()}</td>
+        <td class="${r.avg<0?'neg':''}">${r.avg.toFixed(2)}</td>
+        <td>${(r.coop*100).toFixed(0)}%</td></tr>`).join('')}
+      </tbody></table>`;
+  }
+  if (unseen.length)
+    html += `<p class="unseen" style="margin-top:10px">아직 등장하지 않음 —
+             ${unseen.map(k => STRATEGIES[k].name).join(', ')}</p>`;
+  rank.innerHTML = html;
+  renderFrames();
+}
+
+/* 세계 현황 — 진행률은 일부러 숨긴다.
+   내 판과 사이클 길이가 같아서, 진행률을 보여주면 내 총 라운드 수가 새어 나간다. */
+function renderWorld() {
+  if (!world.length) { worldBox.innerHTML = ''; return; }
+  const sw = k => `<i style="background:${STRATEGIES[k].color}"></i>`;
+  const grid = world.map(w => `<div class="wm">
+      <div class="pair">${sw(w.a)}<em>vs</em>${sw(w.b)}</div>
+      <div style="font-size:9.5px;line-height:1.35">${STRATEGIES[w.a].name}<br>${STRATEGIES[w.b].name}</div>
+    </div>`).join('');
+  const logs = worldLog.map(x => {
+    const nm = k => STRATEGIES[k].name, s = v => Math.round(v);
+    return `<div>${sw(x.a)}<b class="${x.sa<0?'neg':''}">${s(x.sa)}</b>
+      <s>${nm(x.a)}</s> <s>·</s> ${sw(x.b)}<b class="${x.sb<0?'neg':''}">${s(x.sb)}</b>
+      <s>${nm(x.b)}</s></div>`; }).join('');
+  const ex = exposureCheck();
+  worldBox.innerHTML =
+    `<div class="wm" style="margin-bottom:7px">진행 중인 대국 ${world.length}쌍 ·
+      ${ex.even ? `전원 ${ex.lo}라운드 · 노출 균등` : `노출 편차 ${ex.hi-ex.lo}라운드`}</div>
+    <div class="wgrid">${grid}</div>
+    ${logs ? `<div class="wm" style="margin:8px 0 4px">지난 사이클 결과</div>
+              <div class="wlog">${logs}</div>` : ''}`;
+}
+
+/* 상황 종류별 내 협력률 — 같은 게임인데 옷만 바뀌면 선택이 달라지는가 */
+function renderFrames() {
+  const rows = TAGS.filter(t => frames[t].n > 0)
+                   .map(t => ({ t, r: frames[t].c / frames[t].n, n: frames[t].n }))
+                   .sort((a,b) => b.r - a.r);
+  if (!rows.length) { frameBox.innerHTML = ''; return; }
+  frameBox.innerHTML = `<h2 style="margin-bottom:10px"><span>상황별 내 협력률</span></h2>
+    <table><tbody>${rows.map(x => `<tr>
+      <td>${x.t}</td>
+      <td style="width:55%"><div class="bar" style="margin:0">
+        <i style="width:${x.r*100}%;background:${HUMAN.color}"></i></div></td>
+      <td>${(x.r*100).toFixed(0)}%</td><td>${x.n}</td></tr>`).join('')}</tbody></table>
+    <p class="note">구조는 모든 상황이 똑같다. 여기 차이가 난다면 그건 문구가 만든 차이다.</p>`;
+}
+
+rulesBox.innerHTML = `<b>제재 규칙</b><br>
+  · 상대가 협력하는데 나만 배신한 것이 ${RULES.eFree}회를 넘으면, 이후 그런 배신마다
+    최대 -${RULES.eCap}점까지 나만 깎인다.<br>
+  · 맞배신이 ${RULES.sFree}회 연속을 넘으면 라운드마다 최대 -${RULES.sCap}점씩 양쪽 다 깎인다.<br>
+  · 단, 갈등을 먼저 일으키지 않은 쪽은 그 벌점의 ${RULES.retal*100}%만 받는다.
+    보복까지 처벌하면 팃포탯 같은 전략이 억울하게 무너지기 때문이다.<br><br>
+  <b>땅</b><br>
+  · 땅은 <b>누적 총점</b>의 상대 비율로 나뉜다. 같은 전략을 다시 만나면 그 땅이 더 커진다.<br>
+  · 내가 두는 동안 컴퓨터 전략들도 ${WORLD.live}판을 동시에 진행한다.
+    내가 한 라운드 두면 그 대국들도 한 라운드씩 나아가고, 끝난 대국이 땅에 반영된다.<br>
+  · 누적 총점이 음수인 전략은 땅을 한 칸도 갖지 못한다.<br><br>
+  <b>공정성</b><br>
+  · 12전략이 6쌍으로 <b>동시에</b> 대국하므로 노는 전략이 없다.
+    내가 한 라운드 두면 모두가 한 라운드씩 나아간다.<br>
+  · 그래서 <b>매 순간 13명 전원의 라운드 수가 같다.</b>
+    노출이 같으니 누적 총점의 비율이 곧 실력의 비율이다.<br>
+  · 내 상대는 그 전략의 <b>복제본</b>이다. 원본은 리그에서 따로 뛰고 있다.
+    나를 만났다는 이유로 특정 전략만 노출이 늘어나는 것을 막기 위해서다.<br>
+  · 빨리 누르든 오래 고민하든 세계는 <b>클릭 수</b>로만 나아간다.
+    고민 시간은 땅에 영향을 주지 않고 rt_ms에 따로 기록된다.<br>
+  · 표본 늘리기 버튼은 컴퓨터끼리만 돌리므로 <b>내 비중이 줄어든다.</b>
+    실험 조건을 비교할 때만 쓰는 것이 좋다.`;
+
+/* 전송 상태 표시 — 몇 건이 남았는지 항상 보이게 */
+function renderSync() {
+  const n = loadQueue().length;
+  if (!SYNC.on || !SYNC.url) {
+    syncBox.innerHTML = `<i></i><span>전송 꺼짐 · 기록은 이 브라우저에만 남는다</span>`; return;
+  }
+  const cls = sending ? 'wait' : syncState.ok === true ? 'ok'
+            : syncState.ok === false ? 'err' : '';
+  const msg = n ? `대기 ${n}행` : (syncState.msg || '보낼 것 없음');
+  syncBox.innerHTML = `<i class="${cls}"></i><span>${meta ? meta.pid : ''} · ${msg}</span>`;
+}
+
+/* 동의 화면 — 누르기 전에는 게임이 시작되지 않는다 */
+function openGate() {
+  gatePid.textContent = '참가 코드 ' + meta.pid;
+  gateOff.textContent = SYNC.on && SYNC.url ? '' : '(지금은 전송이 꺼져 있습니다)';
+  gate.style.display = 'flex';
+}
+btnConsent.onclick = () => {
+  meta.consentAt = stamp(); saveMeta();
+  enqueue('sessions', [meta.pid, meta.startedAt, meta.consentAt,
+    `${screen.width}x${screen.height}`,
+    JSON.stringify(RULES), JSON.stringify(WORLD), RULES_VER]);
+  gate.style.display = 'none';
+  flush();
+};
+
+/* ═══════════════════════════════════════════════
+   10. 버튼 연결
+   ═══════════════════════════════════════════════ */
+if (!RESEARCHER) {                    // 참가자 화면에서는 위험한 버튼을 감춘다
+  btnLeague.style.display = 'none';
+  btnReset.style.display  = 'none';
+}
+btnC.onclick = () => play('C');
+btnD.onclick = () => play('D');
+btnNext.onclick = newMatch;
+btnLeague.onclick = () => {
+  btnLeague.disabled = true; btnLeague.textContent = '계산 중…';
+  setTimeout(() => { runLeague();
+    btnLeague.disabled = false; btnLeague.textContent = '표본 늘리기'; }, 20);
+};
+btnExport.onclick = () => {
+  const blob = new Blob([JSON.stringify({ rules:RULES, world:WORLD, stats, guessLog, frames }, null, 2)],
+                        { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'coop-map-data.json'; a.click();
+};
+btnReset.onclick = () => {
+  if (!confirm('누적 기록을 모두 지운다. 계속할까?')) return;
+  stats = blank(); guessLog = { correct:0, total:0 }; frames = blankFrames();
+  worldLog = []; sched = []; schedIdx = 0;
+  save(); renderGuessStat(); renderMap(); renderRank(); renderSync();
+  newMatch();
+};
+document.addEventListener('keydown', e => {        // 1 = 위 선택지, 2 = 아래 선택지
+  if (M && !M.done) { if (e.key === '1') play('C'); if (e.key === '2') play('D'); }
+});
+
+loadMeta(); load(); newMatch();
+renderMap(); renderRank(); renderWorld(); renderSync();
+if (!meta.consentAt) openGate();                 // 동의 전에는 게임을 가린다
+flush();                                          // 지난번에 못 보낸 것부터 재시도
+window.addEventListener('online', flush);
+</script>
+</body>
+</html>
