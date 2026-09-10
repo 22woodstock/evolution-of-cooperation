@@ -653,12 +653,10 @@ function pickScene(exclude) {
 function newMatch() {
   meta.matchNo++; saveMeta();
   const len = randRounds();
-  const usedSchedIdx = schedIdx;   // 이 판이 유발하는 세계 사이클 번호 — matches 행에 같이 적어 world와 번호로 조인할 수 있게 한다
   newWorldCycle(len);
   M = { no: meta.matchNo, key: KEYS[Math.floor(Math.random()*KEYS.length)], total: len,
         me: [], op: [], myScore: 0, opScore: 0, done: false,
         st: freshState(), prev: null, scene: null, tShown: 0,
-        schedIdx: usedSchedIdx,
         supaId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : null,
         supaMoves: [], supaStartedAt: stamp() };
   oppSw.className   = 'swatch blind';  oppSw.style.background = '';
@@ -783,8 +781,7 @@ function reveal(guessKey) {
     `${meta.pid}-m${M.no}`, stamp(), meta.pid, M.no, M.key, M.total,
     M.myScore, M.opScore,
     M.me.filter(x => x === 'C').length, M.op.filter(x => x === 'C').length,
-    guessKey || '', guessKey ? (guessKey === M.key ? 1 : 0) : '', RULES_VER,
-    M.schedIdx ]);   // 이 값으로 world 시트의 schedIdx와 번호 대 번호로 조인할 수 있다
+    guessKey || '', guessKey ? (guessKey === M.key ? 1 : 0) : '', RULES_VER ]);
   flush();
 
   // Supabase — 세션 1건 + 무브 전체를 한 번에 저장
