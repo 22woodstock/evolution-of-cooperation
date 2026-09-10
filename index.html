@@ -524,6 +524,12 @@ async function supaSaveMatch(match) {
       const { error: mErr } = await supa.from('moves').insert(rows);
       if (mErr) throw mErr;
     }
+
+    // 이 판과 동시에 진행된 배경 6쌍 대국 결과 — match_id로 sessions와 바로 연결된다
+    if (match.supaWorldRows && match.supaWorldRows.length) {
+      const { error: wErr } = await supa.from('world_cycles').insert(match.supaWorldRows);
+      if (wErr) throw wErr;
+    }
   } catch (e) {
     console.warn('Supabase 저장 실패 (Apps Script 쪽 데이터는 영향 없음)', e);
   }
@@ -622,16 +628,20 @@ function advanceOne(w) {
 }
 function stepWorld() { world.forEach(advanceOne); }
 
-function resolveWorld() {
+function resolveWorld(matchId) {
   worldLog = [];
+  const supaRows = [];
   world.forEach((w, idx) => {
     record(w.a, w.sa, w.n, w.A.filter(z => z === 'C').length);
     record(w.b, w.sb, w.n, w.B.filter(z => z === 'C').length);
     enqueue('world', [`${meta.pid}-c${schedIdx}-${idx}`, stamp(), meta.pid,
                       w.a, w.b, w.n, w.sa, w.sb, RULES_VER]);
     worldLog.push({ a:w.a, b:w.b, sa:w.sa, sb:w.sb });
+    if (matchId) supaRows.push({ match_id: matchId, pair_index: idx,
+      strategy_a: w.a, strategy_b: w.b, rounds: w.n, score_a: w.sa, score_b: w.sb });
   });
   schedIdx++;
+  return supaRows;
 }
 
 function exposureCheck() {
@@ -653,10 +663,12 @@ function pickScene(exclude) {
 function newMatch() {
   meta.matchNo++; saveMeta();
   const len = randRounds();
+  const usedSchedIdx = schedIdx;   // 이 판이 유발하는 세계 사이클 번호 — matches 행에 같이 적어 world와 번호로 조인할 수 있게 한다
   newWorldCycle(len);
   M = { no: meta.matchNo, key: KEYS[Math.floor(Math.random()*KEYS.length)], total: len,
         me: [], op: [], myScore: 0, opScore: 0, done: false,
         st: freshState(), prev: null, scene: null, tShown: 0,
+        schedIdx: usedSchedIdx,
         supaId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : null,
         supaMoves: [], supaStartedAt: stamp() };
   oppSw.className   = 'swatch blind';  oppSw.style.background = '';
@@ -736,7 +748,7 @@ function play(myMove) {
 function endMatch() {
   M.done = true;
   record('HUMAN', M.myScore, M.total, M.me.filter(x => x === 'C').length);
-  resolveWorld();
+  M.supaWorldRows = resolveWorld(M.supaId);   // 이 판에 연결된 배경 6쌍 결과 — Supabase world_cycles용
   save(); updateRounds(); renderMeter();
   sceneBox.innerHTML = '';
   choices.style.display = 'none';
@@ -781,7 +793,8 @@ function reveal(guessKey) {
     `${meta.pid}-m${M.no}`, stamp(), meta.pid, M.no, M.key, M.total,
     M.myScore, M.opScore,
     M.me.filter(x => x === 'C').length, M.op.filter(x => x === 'C').length,
-    guessKey || '', guessKey ? (guessKey === M.key ? 1 : 0) : '', RULES_VER ]);
+    guessKey || '', guessKey ? (guessKey === M.key ? 1 : 0) : '', RULES_VER,
+    M.schedIdx ]);   // 이 값으로 world 시트의 schedIdx와 번호 대 번호로 조인할 수 있다
   flush();
 
   // Supabase — 세션 1건 + 무브 전체를 한 번에 저장
