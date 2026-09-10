@@ -208,6 +208,7 @@ td.neg{color:var(--bad)}
   </section>
 </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 /* ═══════════════════════════════════════════════
    1. 규칙 — 여기 숫자만 바꾸면 전체 균형이 바뀐다
@@ -464,6 +465,71 @@ async function flush() {
 }
 
 /* ═══════════════════════════════════════════════
+   4-C. Supabase 전송 (Apps Script와 병행 운영)
+
+   설계 원칙:
+   · RLS 정책이 insert만 허용하고 update는 막아 두었기 때문에,
+     라운드마다 실시간으로 보내지 않고 판이 끝나는 시점(reveal)에
+     세션 1건 + 그 판의 무브 전체를 한 번에 묶어서 보낸다.
+   · 클라이언트는 "선택"과 "반응시간"이라는 사실만 보낸다.
+     최종 점수(final_score)는 지금은 클라이언트가 계산한 값을 그대로
+     기록하고 있으며, 이는 이후 Edge Function으로 서버 재계산을
+     붙이기 전까지의 임시 상태임을 별도로 표시해 둔다(§ 다음 단계).
+   ═══════════════════════════════════════════════ */
+const SUPA = {
+  url: 'https://urygeeiefkbkfdmlnxtg.supabase.co',   // Project Settings → Data API
+  key: 'sb_publishable_J7zF8IK4o7RU9xVZDRKCwg_r2O30VV7', // API Keys → Publishable key
+  on:  true,
+};
+let supa = null, supaUserId = null;
+const supaReady = initSupabase();
+
+async function initSupabase() {
+  if (!SUPA.on || !SUPA.url || !SUPA.key || SUPA.key.includes('여기에')) {
+    console.warn('Supabase 키가 설정되지 않아 Supabase 전송을 건너뜁니다.');
+    return;
+  }
+  try {
+    supa = window.supabase.createClient(SUPA.url, SUPA.key);
+    let { data: { session } } = await supa.auth.getSession();
+    if (!session) {
+      const { data, error } = await supa.auth.signInAnonymously();
+      if (error) throw error;
+      session = data.session;
+    }
+    supaUserId = session.user.id;
+  } catch (e) {
+    console.warn('Supabase 익명 로그인 실패', e);
+  }
+}
+
+// 판 하나(세션 + 그 안의 모든 라운드)를 한 번에 저장한다
+async function supaSaveMatch(match) {
+  await supaReady;
+  if (!supa || !supaUserId || !match.supaId) return;
+  try {
+    const { error: sErr } = await supa.from('sessions').insert({
+      id: match.supaId,
+      user_id: supaUserId,
+      opponent_strategy: match.key,
+      total_rounds: match.total,
+      final_score: match.myScore,   // 임시: 클라이언트 계산값. 추후 Edge Function으로 서버 재계산 예정
+      started_at: match.supaStartedAt,
+      ended_at: stamp(),
+    });
+    if (sErr) throw sErr;
+
+    const rows = match.supaMoves.map(m => ({ session_id: match.supaId, ...m }));
+    if (rows.length) {
+      const { error: mErr } = await supa.from('moves').insert(rows);
+      if (mErr) throw mErr;
+    }
+  } catch (e) {
+    console.warn('Supabase 저장 실패 (Apps Script 쪽 데이터는 영향 없음)', e);
+  }
+}
+
+/* ═══════════════════════════════════════════════
    5. 누적 데이터
    ═══════════════════════════════════════════════ */
 const SAVE_KEY = 'coop-map-v3';
@@ -523,26 +589,12 @@ function runLeague(reps = 12) {
 
 /* ═══════════════════════════════════════════════
    6-B. 살아 있는 세계 — 노출 균등 설계
-   
-   공정성의 핵심은 "모두가 항상 같은 라운드 수를 갖는다"이다.
-   그래서 세계를 이렇게 짰다.
-   
-   · 12전략이 6쌍으로 나뉘어 동시에 대국한다. 노는 전략이 없다.
-   · 나는 그중 한 전략의 복제본과 둔다. (원본은 원본대로 리그를 뛴다)
-   · 내가 한 라운드 두면 6쌍 전부가 한 라운드씩 나아간다.
-     → 매 순간 12전략과 나, 13명 모두 라운드 수가 정확히 같다.
-   · 모든 대국이 같은 길이라서 한꺼번에 끝나고, 그때 땅이 재분배된다.
-   · 짝짓기는 원형 방식 라운드로빈이라 11사이클이면 전원이 전원을 한 번씩 만난다.
-   
-   노출이 같으므로 누적 총점의 비율은 곧 실력의 비율이다.
-   많이 만나서 땅이 커지는 일이 구조적으로 불가능해진다.
    ═══════════════════════════════════════════════ */
 let world = [], worldLog = [], sched = [], schedIdx = 0;
 
-/* 원형 방식 라운드로빈 — 한 사이클에 6쌍, 11사이클이면 전원 대진 완료 */
 function buildSchedule(keys) {
   const arr = keys.slice();
-  for (let i = arr.length - 1; i > 0; i--) {            // 순서를 섞어 편향을 없앤다
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   const fixed = arr[0], rot = arr.slice(1), out = [];
@@ -570,7 +622,6 @@ function advanceOne(w) {
 }
 function stepWorld() { world.forEach(advanceOne); }
 
-/* 사이클 종료 — 6쌍이 한꺼번에 결산된다 */
 function resolveWorld() {
   worldLog = [];
   world.forEach((w, idx) => {
@@ -583,7 +634,6 @@ function resolveWorld() {
   schedIdx++;
 }
 
-/* 노출이 정말 균등한지 스스로 점검한다 */
 function exposureCheck() {
   const rs = [...KEYS, 'HUMAN'].map(k => stats[k].rounds);
   const lo = Math.min(...rs), hi = Math.max(...rs);
@@ -602,11 +652,13 @@ function pickScene(exclude) {
 }
 function newMatch() {
   meta.matchNo++; saveMeta();
-  const len = randRounds();                   // 내 판과 세계 사이클이 같은 길이다
+  const len = randRounds();
   newWorldCycle(len);
   M = { no: meta.matchNo, key: KEYS[Math.floor(Math.random()*KEYS.length)], total: len,
         me: [], op: [], myScore: 0, opScore: 0, done: false,
-        st: freshState(), prev: null, scene: null, tShown: 0 };
+        st: freshState(), prev: null, scene: null, tShown: 0,
+        supaId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : null,
+        supaMoves: [], supaStartedAt: stamp() };
   oppSw.className   = 'swatch blind';  oppSw.style.background = '';
   oppName.className = 'oppname blind'; oppName.textContent = '???';
   oppDesc.textContent = '상대 전략은 판이 끝난 뒤에 공개된다.';
@@ -622,7 +674,7 @@ function nextScene() {
     <p>${M.scene.s}</p></div>`;
   txtC.textContent = M.scene.c;
   txtD.textContent = M.scene.d;
-  M.tShown = performance.now();               // 반응 시간 측정 시작
+  M.tShown = performance.now();
 }
 function setScore(el, v) { el.textContent = v; el.className = 'val' + (v < 0 ? ' neg' : ''); }
 function updateRounds() {
@@ -652,14 +704,19 @@ function play(myMove) {
   M.myScore += base[0] - pa; M.opScore += base[1] - pb;
   M.me.push(myMove); M.op.push(opMove); M.prev = { a: myMove, b: opMove };
 
-  frames[scene.t].n++; if (myMove === 'C') frames[scene.t].c++;   // 프레이밍 기록
+  frames[scene.t].n++; if (myMove === 'C') frames[scene.t].c++;
+
+  const rt = Math.round(performance.now() - M.tShown);
 
   enqueue('rounds', [
     `${meta.pid}-m${M.no}-r${M.me.length}`, stamp(), meta.pid, M.no, M.me.length,
     M.key, scene.t, SCENES.indexOf(scene), myMove, opMove,
     base[0], pa, base[1], pb, M.myScore, M.opScore,
     M.st.ea, M.st.eb, M.st.spiral,
-    Math.round(performance.now() - M.tShown), RULES_VER ]);
+    rt, RULES_VER ]);
+
+  // Supabase용 원본 라운드 기록 — 판이 끝나면 한 번에 묶어서 보낸다
+  M.supaMoves.push({ round_number: M.me.length, choice: myMove, response_time_ms: rt });
 
   setScore(myScore, M.myScore); setScore(opScore, M.opScore);
   const row = document.createElement('div');
@@ -671,16 +728,13 @@ function play(myMove) {
     <span class="pen">${base[0]-pa>=0?'+':''}${base[0]-pa} / ${base[1]-pb>=0?'+':''}${base[1]-pb}${pa||pb?' ⚑':''}</span>`;
   log.prepend(row);
 
-  stepWorld();                                  // 6쌍 전부 한 라운드씩 나아간다
+  stepWorld();
 
   if (M.me.length >= M.total) endMatch();
   else { nextScene(); updateRounds(); renderMeter(); }
 }
 function endMatch() {
   M.done = true;
-  // 내 점수만 지도에 반영한다. 내 상대는 그 전략의 복제본이고,
-  // 원본은 원본대로 리그에서 같은 수의 라운드를 뛰고 있다.
-  // 이렇게 해야 나를 만났다는 이유로 특정 전략만 노출이 늘어나지 않는다.
   record('HUMAN', M.myScore, M.total, M.me.filter(x => x === 'C').length);
   resolveWorld();
   save(); updateRounds(); renderMeter();
@@ -728,7 +782,10 @@ function reveal(guessKey) {
     M.myScore, M.opScore,
     M.me.filter(x => x === 'C').length, M.op.filter(x => x === 'C').length,
     guessKey || '', guessKey ? (guessKey === M.key ? 1 : 0) : '', RULES_VER ]);
-  flush();                                    // 판이 끝날 때 한 번에 보낸다
+  flush();
+
+  // Supabase — 세션 1건 + 무브 전체를 한 번에 저장
+  supaSaveMatch(M);
 
   btnNext.style.display = 'block';
   save(); renderGuessStat(); renderMap(); renderRank(); renderWorld();
@@ -739,9 +796,7 @@ function renderGuessStat() {
 }
 
 /* ═══════════════════════════════════════════════
-   8. 면적 계산 — 누적 총점의 상대 비율로 땅을 나눈다
-   같은 상대를 또 만나면 그 전략 땅이 그만큼 더 커진다.
-   누적 총점이 음수인 전략은 땅을 한 칸도 갖지 못한다.
+   8. 면적 계산
    ═══════════════════════════════════════════════ */
 function allocate(vals, total) {
   const v = vals.map(x => Math.max(0, x));
@@ -760,8 +815,8 @@ function ranked() {
     .map(k => ({ k,
       label: k === 'HUMAN' ? HUMAN.name  : STRATEGIES[k].name,
       color: k === 'HUMAN' ? HUMAN.color : STRATEGIES[k].color,
-      total: stats[k].score,                       // 땅의 기준
-      avg:   stats[k].score / stats[k].rounds,      // 강함의 기준
+      total: stats[k].score,
+      avg:   stats[k].score / stats[k].rounds,
       coop:  stats[k].coops / stats[k].rounds }))
     .sort((a,b) => b.total - a.total);
 }
@@ -814,8 +869,6 @@ function renderRank() {
   renderFrames();
 }
 
-/* 세계 현황 — 진행률은 일부러 숨긴다.
-   내 판과 사이클 길이가 같아서, 진행률을 보여주면 내 총 라운드 수가 새어 나간다. */
 function renderWorld() {
   if (!world.length) { worldBox.innerHTML = ''; return; }
   const sw = k => `<i style="background:${STRATEGIES[k].color}"></i>`;
@@ -837,7 +890,6 @@ function renderWorld() {
               <div class="wlog">${logs}</div>` : ''}`;
 }
 
-/* 상황 종류별 내 협력률 — 같은 게임인데 옷만 바뀌면 선택이 달라지는가 */
 function renderFrames() {
   const rows = TAGS.filter(t => frames[t].n > 0)
                    .map(t => ({ t, r: frames[t].c / frames[t].n, n: frames[t].n }))
@@ -875,7 +927,6 @@ rulesBox.innerHTML = `<b>제재 규칙</b><br>
   · 표본 늘리기 버튼은 컴퓨터끼리만 돌리므로 <b>내 비중이 줄어든다.</b>
     실험 조건을 비교할 때만 쓰는 것이 좋다.`;
 
-/* 전송 상태 표시 — 몇 건이 남았는지 항상 보이게 */
 function renderSync() {
   const n = loadQueue().length;
   if (!SYNC.on || !SYNC.url) {
@@ -887,7 +938,6 @@ function renderSync() {
   syncBox.innerHTML = `<i class="${cls}"></i><span>${meta ? meta.pid : ''} · ${msg}</span>`;
 }
 
-/* 동의 화면 — 누르기 전에는 게임이 시작되지 않는다 */
 function openGate() {
   gatePid.textContent = '참가 코드 ' + meta.pid;
   gateOff.textContent = SYNC.on && SYNC.url ? '' : '(지금은 전송이 꺼져 있습니다)';
@@ -905,7 +955,7 @@ btnConsent.onclick = () => {
 /* ═══════════════════════════════════════════════
    10. 버튼 연결
    ═══════════════════════════════════════════════ */
-if (!RESEARCHER) {                    // 참가자 화면에서는 위험한 버튼을 감춘다
+if (!RESEARCHER) {
   btnLeague.style.display = 'none';
   btnReset.style.display  = 'none';
 }
@@ -930,14 +980,14 @@ btnReset.onclick = () => {
   save(); renderGuessStat(); renderMap(); renderRank(); renderSync();
   newMatch();
 };
-document.addEventListener('keydown', e => {        // 1 = 위 선택지, 2 = 아래 선택지
+document.addEventListener('keydown', e => {
   if (M && !M.done) { if (e.key === '1') play('C'); if (e.key === '2') play('D'); }
 });
 
 loadMeta(); load(); newMatch();
 renderMap(); renderRank(); renderWorld(); renderSync();
-if (!meta.consentAt) openGate();                 // 동의 전에는 게임을 가린다
-flush();                                          // 지난번에 못 보낸 것부터 재시도
+if (!meta.consentAt) openGate();
+flush();
 window.addEventListener('online', flush);
 </script>
 </body>
