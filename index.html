@@ -144,6 +144,10 @@ td.neg{color:var(--bad)}
 .sync i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;flex:none}
 .sync i.ok{background:var(--good)} .sync i.wait{background:var(--warn)} .sync i.err{background:var(--bad)}
 .frame{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.scen{align-items:center;margin-top:12px;padding-top:12px}
+.scen-sel{width:auto;margin:0;padding:7px 8px;font-size:12px}
+#scenBox{margin-top:14px}
+#scenBox td.up{color:var(--good)} #scenBox td.down{color:var(--bad)}
 </style>
 </head>
 <body>
@@ -203,6 +207,15 @@ td.neg{color:var(--bad)}
       <button class="b-ghost" id="btnExport">데이터 내보내기</button>
       <button class="b-ghost" id="btnReset">기록 초기화</button>
     </div>
+    <div class="tools scen" id="scenTools">
+      <label class="wm" for="hsCount">악수 무리</label>
+      <select id="hsCount" class="scen-sel">
+        <option value="1">1마리</option><option value="3" selected>3마리</option>
+        <option value="6">6마리</option><option value="10">10마리</option>
+      </select>
+      <button class="b-ghost" id="btnHS">악수 시나리오</button>
+    </div>
+    <div id="scenBox"></div>
     <div class="sync" id="syncBox"></div>
     <div class="rules" id="rulesBox"></div>
   </section>
@@ -223,6 +236,9 @@ const RULES = {
   sFree: 4, sStep: 1, sCap: 3,
   // ③ 보복자 경감 — 갈등을 먼저 일으키지 않은 쪽은 벌점의 25%만 받는다
   retal: 0.25,
+  // ④ 실수 — 컴퓨터 전략의 수가 이 확률로 의도와 반대로 나간다. 사람이 누른 버튼은 그대로다.
+  //    0으로 두면 실수가 없는 세계가 된다.
+  noise: 0.05,
 };
 
 /* 연구자 모드 — 주소 끝에 ?100916 을 붙이면 켜진다.
@@ -242,7 +258,7 @@ const SYNC = {
 
 // 살아 있는 세계 — 내가 두는 동안 컴퓨터끼리도 계속 대국한다
 const WORLD = {
-  live: 6,      // 동시에 진행 중인 컴퓨터끼리의 대국 수
+  live: 0,      // 동시에 진행 중인 컴퓨터끼리의 대국 수 — 전략 수의 절반으로 아래에서 자동 계산된다
   step: 1,      // 내가 한 라운드 둘 때 세계가 나아가는 라운드 수
   keepLog: 4,   // 최근 결과 몇 개를 보여줄지
 };
@@ -310,7 +326,94 @@ const SCENES = [
 const TAGS = [...new Set(SCENES.map(s => s.t))];
 
 /* ═══════════════════════════════════════════════
-   3. 전략 12종 — move(me, opp) → 'C' 또는 'D'
+   3-A. 학습형 상대의 두뇌
+   ① 관찰 — 상대를 "직전 결과 4가지(CC·CD·DC·DD) 뒤에 협력할 확률"로 추정한다.
+            (마르코프 연쇄의 기억 1단계 모델)
+   ② 계획 — 그 추정을 믿고 앞으로 몇 라운드를 내다봐, 제재까지 포함한
+            기대 점수가 가장 큰 수를 고른다. 이번 라운드만 보면 배신이 늘 이득이라
+            반드시 앞을 내다봐야 한다.
+   ③ 탐색 — 상호 협력만 이어지면 "배신하면 상대가 어떻게 나오는지"를 영영 모른다.
+            그래서 정해진 라운드에 한 번 찔러 본다.
+   무작위가 없다. 같은 기록이면 항상 같은 수가 나온다(동점이면 협력).
+   판이 바뀌면 처음부터 다시 배운다. 다른 전략들도 지난 판을 기억하지 않기 때문이다.
+   ═══════════════════════════════════════════════ */
+const LEARN = {
+  horizon: 5,                      // 몇 라운드 앞까지 내다볼지
+  prior:   [0.8, 0.2, 0.8, 0.2],   // 아직 모를 때의 가정: 상대는 팃포탯과 비슷하다
+  priorN:  1,                      // 그 가정을 관찰 몇 번만큼 믿을지 — 작을수록 빨리 바뀐다
+  probeAt: 4,                      // 이 라운드(0부터 셈)까지 서로 협력만 했다면 한 번 찔러 본다
+};
+const STATE_NAMES = ['CC', 'CD', 'DC', 'DD'];   // 앞 글자 = 그 사람 자신의 수
+const stateIdx = (self, other) => (self === 'C' ? 0 : 2) + (other === 'C' ? 0 : 1);
+
+// 상대(opp)가 각 상황 뒤에 협력할 확률. 상황은 상대 입장에서 본 직전 결과다.
+function learnerEstimate(me, opp) {
+  const c = [0,0,0,0], n = [0,0,0,0];
+  for (let t = 1; t < opp.length; t++) {
+    const s = stateIdx(opp[t-1], me[t-1]);
+    n[s]++; if (opp[t] === 'C') c[s]++;
+  }
+  const p = LEARN.prior.map((q, s) => (c[s] + LEARN.priorN * q) / (n[s] + LEARN.priorN));
+  return { p, n };
+}
+function copyState(st) { return { ea: st.ea, eb: st.eb, spiral: st.spiral, inst: st.inst }; }
+
+// 기대 점수 트리 — 나는 매 라운드 최선을 고르고, 상대는 추정 확률대로 움직인다고 가정
+function learnerValue(p, prev, st, depth) {
+  if (depth === 0) return 0;
+  const pc = prev ? p[stateIdx(prev.b, prev.a)] : 0.5;
+  let best = -Infinity;
+  for (const a of ['C', 'D']) {
+    let v = 0;
+    for (const b of ['C', 'D']) {
+      const pr = b === 'C' ? pc : 1 - pc;
+      if (pr === 0) continue;
+      const s2 = copyState(st);
+      const { pa } = penalty(a, b, s2, prev);
+      v += pr * (PAYOFF[a + b][0] - pa + learnerValue(p, { a, b }, s2, depth - 1));
+    }
+    if (v > best) best = v;
+  }
+  return best;
+}
+function learnerMove(me, opp) {
+  const n = me.length;
+  if (n === 0) return 'C';
+  if (n === LEARN.probeAt && !me.includes('D') && !opp.includes('D')) return 'D';   // 탐색
+  // 지금까지의 기록을 다시 따라가 제재 상태(누적 배신, 맞배신 연속)를 복원한다
+  const st = freshState(); let prev = null;
+  for (let t = 0; t < n; t++) { penalty(me[t], opp[t], st, prev); prev = { a: me[t], b: opp[t] }; }
+  const { p } = learnerEstimate(me, opp);
+  const pc = p[stateIdx(prev.b, prev.a)];
+  const val = a => {
+    let v = 0;
+    for (const b of ['C', 'D']) {
+      const pr = b === 'C' ? pc : 1 - pc;
+      if (pr === 0) continue;
+      const s2 = copyState(st);
+      const { pa } = penalty(a, b, s2, prev);
+      v += pr * (PAYOFF[a + b][0] - pa + learnerValue(p, { a, b }, s2, LEARN.horizon - 1));
+    }
+    return v;
+  };
+  return val('D') > val('C') + 1e-9 ? 'D' : 'C';
+}
+
+/* 뉘우치는 팃포탯의 "명분" — 각자가 떳떳한 상태(good)인지 기록에서 계산한다.
+   협력했거나, 떳떳한 내가 떳떳하지 않은 상대에게 보복했다면 떳떳하다.
+   이유 없이 먼저 배신했다면(실수 포함) 떳떳하지 않다. */
+function standing(me, opp) {
+  let mine = true, theirs = true;
+  for (let t = 0; t < me.length; t++) {
+    const m = me[t] === 'C' || (mine && !theirs);
+    const o = opp[t] === 'C' || (theirs && !mine);
+    mine = m; theirs = o;
+  }
+  return { mine, theirs };
+}
+
+/* ═══════════════════════════════════════════════
+   3. 전략 14종 — move(me, opp) → 'C' 또는 'D'
    전략은 상황 문구를 보지 않는다. 구조만 본다.
    ═══════════════════════════════════════════════ */
 const STRATEGIES = {
@@ -330,6 +433,10 @@ const STRATEGIES = {
            desc:'상대가 연속 두 번 배신할 때만 보복한다. 더 너그럽다.',
            move:(me,opp) => (opp.length>=2 && opp[opp.length-1]==='D'
                              && opp[opp.length-2]==='D') ? 'D' : 'C' },
+  CTFT:  { name:'뉘우치는 팃포탯', color:'#E3C98A',
+           desc:'팃포탯처럼 갚아 주지만, 자기가 먼저 잘못했을 때는 상대의 보복을 받아들이고 되갚지 않는다. 실수의 메아리를 한 번에 끊는다.',
+           move:(me,opp) => { const s = standing(me, opp);
+             return (s.mine && !s.theirs) ? 'D' : 'C'; } },
   GTFT:  { name:'너그러운 팃포탯', color:'#A8CF6B',
            desc:'배신당해도 열 번에 한 번쯤 용서하고 협력한다.',
            move:(me,opp) => {
@@ -363,9 +470,26 @@ const STRATEGIES = {
   RAND:  { name:'랜덤', color:'#75868A',
            desc:'매번 동전을 던진다. 비교 기준선.',
            move:() => Math.random() < 0.5 ? 'C' : 'D' },
+  LEARN: { name:'학습형', color:'#5FD0A8',
+           desc:'정해진 규칙이 없다. 상대가 직전 결과 뒤에 어떻게 나오는지 관찰해 확률로 추정하고, 앞으로 몇 라운드를 내다봐 점수가 가장 큰 수를 고른다.',
+           move:(me,opp) => learnerMove(me, opp) },
 };
 const KEYS  = Object.keys(STRATEGIES);
 const HUMAN = { name:'나', color:'#F2EFE3' };
+
+// 동시에 대국하려면 전략 수가 짝수여야 한다. 홀수면 매 사이클 한 전략이 쉬어 노출 균등이 깨진다.
+WORLD.live = KEYS.length / 2;
+if (KEYS.length % 2) console.error(`전략이 ${KEYS.length}개(홀수)다. 노출 균등이 깨지므로 하나를 더하거나 빼야 한다.`);
+
+/* 악수 — 리그의 정식 전략이 아니라 연구자용 "경우"다.
+   첫 두 수로 암호(배신→협력)를 보내고, 같은 암호를 낸 상대하고만 협력한다.
+   혼자서는 알아볼 동료가 없어 의미가 없으므로, 연구자 모드의 시나리오에서
+   여러 마리를 한꺼번에 넣어 "서로 알아보는 무리가 있는 세계"를 따로 계산한다. */
+const HANDSHAKE = { name:'악수', color:'#8FD3C7',
+  desc:'첫 두 수로 암호(배신→협력)를 보낸다. 상대도 같은 암호를 냈으면 계속 협력, 아니면 계속 배신.',
+  move:(me,opp) => { const n = me.length;
+    if (n === 0) return 'D';  if (n === 1) return 'C';
+    return (opp[0] === 'D' && opp[1] === 'C') ? 'C' : 'D'; } };
 
 /* ═══════════════════════════════════════════════
    4. 제재 계산 — 이 게임의 핵심
@@ -404,13 +528,33 @@ function penalty(ma, mb, st, prev) {
 }
 function freshState() { return { ea:0, eb:0, spiral:0, inst:null }; }
 
+// 실수 — 컴퓨터가 의도한 수를 RULES.noise 확률로 뒤집는다. 전략들은 실제로 나간 수만 본다.
+const flip = m => m === 'C' ? 'D' : 'C';
+function act(intended) { return Math.random() < RULES.noise ? flip(intended) : intended; }
+
+// 두 전략(이동 함수)을 n라운드 붙인다 — 리그, 세계, 시나리오가 모두 이 함수를 쓴다
+function playPair(moveA, moveB, n) {
+  const A = [], B = [], st = freshState();
+  let sa = 0, sb = 0, prev = null;
+  for (let i = 0; i < n; i++) {
+    const a = act(moveA(A, B));
+    const b = act(moveB(B, A));
+    const p = PAYOFF[a + b];
+    const { pa, pb } = penalty(a, b, st, prev);
+    sa += p[0] - pa; sb += p[1] - pb;
+    A.push(a); B.push(b); prev = { a, b };
+  }
+  return { sa, sb, ca: A.filter(x => x === 'C').length, cb: B.filter(x => x === 'C').length };
+}
+
 /* ═══════════════════════════════════════════════
    4-B. 전송 — 참가 코드, 동의, 큐, 재시도
    판이 끝날 때 20~30행을 한 번에 보낸다.
    라운드마다 보내면 버튼 누를 때마다 렉이 걸리고 할당량도 금방 찬다.
    ═══════════════════════════════════════════════ */
 const META_KEY = 'coop-meta-v3', Q_KEY = 'coop-queue-v3';
-const RULES_VER = `e${RULES.eFree}-${RULES.eStep}-${RULES.eCap}_s${RULES.sFree}-${RULES.sStep}-${RULES.sCap}_r${RULES.retal}_w${WORLD.live}`;
+// 규칙·실수율·전략 구성이 바뀌면 이 값도 바뀐다 — 서로 다른 조건의 데이터를 구분하는 꼬리표
+const RULES_VER = `e${RULES.eFree}-${RULES.eStep}-${RULES.eCap}_s${RULES.sFree}-${RULES.sStep}-${RULES.sCap}_r${RULES.retal}_w${WORLD.live}_n${RULES.noise}_k${KEYS.length}`;
 let meta = null, syncState = { ok:null, msg:'' }, sending = false;
 
 function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -503,12 +647,39 @@ async function initSupabase() {
   }
 }
 
+/* 확장 열 — supabase-migration.sql 을 실행해 열을 만들어야 저장된다.
+   열이 아직 없으면 Supabase가 거부하므로, 그때는 원래 열만으로 다시 보낸다.
+   그래서 SQL을 실행하기 전에 이 파일을 올려도 기존 데이터 수집은 멈추지 않는다. */
+const SUPA_BASE_COLS = {
+  sessions: ['id','user_id','opponent_strategy','total_rounds','final_score','started_at','ended_at'],
+  moves:    ['session_id','round_number','choice','response_time_ms'],
+};
+let supaExtOk = true;   // 한 번 거부당하면 이번 접속 동안은 원래 열만 보낸다
+const pick = (o, keys) => Object.fromEntries(keys.filter(k => k in o).map(k => [k, o[k]]));
+function isMissingColumn(err) {
+  const m = String((err && (err.message || err.details)) || '');
+  return (err && err.code === 'PGRST204') || /column/i.test(m);
+}
+async function supaInsert(table, rows) {
+  if (supaExtOk) {
+    const { error } = await supa.from(table).insert(rows);
+    if (!error) return;
+    if (!isMissingColumn(error)) throw error;
+    supaExtOk = false;
+    console.warn('확장 열이 아직 없어 기본 열만 저장합니다. supabase-migration.sql 을 실행하세요.');
+  }
+  const base = Array.isArray(rows) ? rows.map(r => pick(r, SUPA_BASE_COLS[table]))
+                                   : pick(rows, SUPA_BASE_COLS[table]);
+  const { error } = await supa.from(table).insert(base);
+  if (error) throw error;
+}
+
 // 판 하나(세션 + 그 안의 모든 라운드)를 한 번에 저장한다
 async function supaSaveMatch(match) {
   await supaReady;
   if (!supa || !supaUserId || !match.supaId) return;
   try {
-    const { error: sErr } = await supa.from('sessions').insert({
+    await supaInsert('sessions', {
       id: match.supaId,
       user_id: supaUserId,
       opponent_strategy: match.key,
@@ -516,16 +687,15 @@ async function supaSaveMatch(match) {
       final_score: match.myScore,   // 임시: 클라이언트 계산값. 추후 Edge Function으로 서버 재계산 예정
       started_at: match.supaStartedAt,
       ended_at: stamp(),
+      rules_ver: RULES_VER,          // 확장 열
+      participant_code: meta.pid,    // 확장 열 — R-로 시작하면 연구자 테스트
+      guess: match.guess || null,    // 확장 열
     });
-    if (sErr) throw sErr;
 
     const rows = match.supaMoves.map(m => ({ session_id: match.supaId, ...m }));
-    if (rows.length) {
-      const { error: mErr } = await supa.from('moves').insert(rows);
-      if (mErr) throw mErr;
-    }
+    if (rows.length) await supaInsert('moves', rows);
 
-    // 이 판과 동시에 진행된 배경 6쌍 대국 결과 — match_id로 sessions와 바로 연결된다
+    // 이 판과 동시에 진행된 배경 7쌍 대국 결과 — match_id로 sessions와 바로 연결된다
     if (match.supaWorldRows && match.supaWorldRows.length) {
       const { error: wErr } = await supa.from('world_cycles').insert(match.supaWorldRows);
       if (wErr) throw wErr;
@@ -538,7 +708,8 @@ async function supaSaveMatch(match) {
 /* ═══════════════════════════════════════════════
    5. 누적 데이터
    ═══════════════════════════════════════════════ */
-const SAVE_KEY = 'coop-map-v3';
+// v4 — 전략이 14개로 바뀌고 실수가 생겼다. 예전 기록과 섞이면 노출 균등이 깨지므로 새로 시작한다.
+const SAVE_KEY = 'coop-map-v4';
 let stats, guessLog, frames;
 
 function blank() {
@@ -574,23 +745,69 @@ const randRounds = () =>
   RULES.roundsMin + Math.floor(Math.random() * (RULES.roundsMax - RULES.roundsMin + 1));
 
 function autoMatch(aKey, bKey, n) {
-  const A = [], B = [], st = freshState();
-  let sa = 0, sb = 0, prev = null;
-  for (let i = 0; i < n; i++) {
-    const a = STRATEGIES[aKey].move(A, B);
-    const b = STRATEGIES[bKey].move(B, A);
-    const p = PAYOFF[a + b];
-    const { pa, pb } = penalty(a, b, st, prev);
-    sa += p[0] - pa; sb += p[1] - pb;
-    A.push(a); B.push(b); prev = { a, b };
-  }
-  record(aKey, sa, n, A.filter(x => x === 'C').length);
-  record(bKey, sb, n, B.filter(x => x === 'C').length);
+  const r = playPair(STRATEGIES[aKey].move, STRATEGIES[bKey].move, n);
+  record(aKey, r.sa, n, r.ca);
+  record(bKey, r.sb, n, r.cb);
 }
 function runLeague(reps = 12) {
   for (const a of KEYS) for (const b of KEYS)
     for (let r = 0; r < reps; r++) autoMatch(a, b, randRounds());
   save(); renderMap(); renderRank();
+}
+
+/* ═══════════════════════════════════════════════
+   6-A. 악수 시나리오 — 연구자 전용, 지도·리그 기록과 완전히 분리
+   "서로 알아보는 무리가 섞여 들어오면 세계가 어떻게 바뀌는가"를 따로 계산한다.
+   같은 세계를 악수 없이 한 번, 악수 무리를 넣고 한 번 돌려 라운드당 평균을 비교한다.
+   ═══════════════════════════════════════════════ */
+function tourney(players, reps) {
+  const t = {};
+  players.forEach(p => t[p.id] = { s:0, r:0, c:0 });
+  for (let i = 0; i < players.length; i++)
+    for (let j = i + 1; j < players.length; j++)          // 자기 자신과는 두지 않는다 — 살아 있는 세계와 같다
+      for (let k = 0; k < reps; k++) {
+        const n = randRounds();
+        const x = playPair(players[i].move, players[j].move, n);
+        const A = t[players[i].id], B = t[players[j].id];
+        A.s += x.sa; A.r += n; A.c += x.ca;
+        B.s += x.sb; B.r += n; B.c += x.cb;
+      }
+  return t;
+}
+function runScenario(hsN, reps = 10) {
+  const field = KEYS.map(k => ({ id:k, move: STRATEGIES[k].move }));
+  const herd  = Array.from({ length: hsN }, (_, i) => ({ id:'HS' + i, move: HANDSHAKE.move }));
+  const without = tourney(field, reps);
+  const withHS  = tourney([...field, ...herd], reps);
+  const avg = x => x.r ? x.s / x.r : 0;
+
+  const hsAgg = herd.reduce((a, h) => ({ s: a.s + withHS[h.id].s, r: a.r + withHS[h.id].r,
+                                         c: a.c + withHS[h.id].c }), { s:0, r:0, c:0 });
+  const rows = KEYS.map(k => ({ name: STRATEGIES[k].name, color: STRATEGIES[k].color,
+                                before: avg(without[k]), after: avg(withHS[k]),
+                                coop: withHS[k].c / withHS[k].r }));
+  rows.push({ name: `악수 무리 (${hsN}마리 평균)`, color: HANDSHAKE.color, hs: true,
+              before: null, after: avg(hsAgg), coop: hsAgg.c / hsAgg.r });
+  rows.sort((a, b) => b.after - a.after);
+  const hsRank = rows.findIndex(r => r.hs) + 1;
+  return { rows, hsRank, hsN, reps };
+}
+function renderScenario(res) {
+  const f = v => v === null ? '—' : v.toFixed(2);
+  scenBox.innerHTML = `<h2 style="margin-bottom:10px"><span>악수 시나리오 · 라운드당 평균</span></h2>
+    <table><thead><tr><th>전략</th><th>악수 없음</th><th>악수 있음</th><th>차이</th><th>협력</th></tr></thead><tbody>
+    ${res.rows.map(r => { const d = r.before === null ? null : r.after - r.before;
+      return `<tr>
+        <td><div class="name"><span class="swatch" style="background:${r.color}"></span>${r.hs ? `<b>${r.name}</b>` : r.name}</div></td>
+        <td>${f(r.before)}</td><td class="${r.after<0?'neg':''}">${f(r.after)}</td>
+        <td class="${d===null?'':d>0.005?'up':d<-0.005?'down':''}">${d===null?'—':(d>0?'+':'')+d.toFixed(2)}</td>
+        <td>${(r.coop*100).toFixed(0)}%</td></tr>`; }).join('')}
+    </tbody></table>
+    <p class="note">악수 무리는 ${res.rows.length}개 중 <b style="color:var(--paper)">${res.hsRank}위</b>.
+      각 짝을 ${res.reps}판씩 두었고 실수율 ${Math.round(RULES.noise*100)}%가 적용됐다.
+      이 계산은 지도와 순위표에 반영되지 않는다.
+      무리 크기를 바꿔 보면, 알아볼 동료가 몇 마리 이상일 때 암호가 이득이 되는지 보인다.
+      실수로 암호가 깨지면 동료끼리도 서로 배신한다.</p>`;
 }
 
 /* ═══════════════════════════════════════════════
@@ -619,8 +836,8 @@ function newWorldCycle(len) {
                                    prev: null, sa: 0, sb: 0, n: len }));
 }
 function advanceOne(w) {
-  const x = STRATEGIES[w.a].move(w.A, w.B);
-  const y = STRATEGIES[w.b].move(w.B, w.A);
+  const x = act(STRATEGIES[w.a].move(w.A, w.B));
+  const y = act(STRATEGIES[w.b].move(w.B, w.A));
   const base = PAYOFF[x + y];
   const { pa, pb } = penalty(x, y, w.st, w.prev);
   w.sa += base[0] - pa; w.sb += base[1] - pb;
@@ -668,7 +885,7 @@ function newMatch() {
   M = { no: meta.matchNo, key: KEYS[Math.floor(Math.random()*KEYS.length)], total: len,
         me: [], op: [], myScore: 0, opScore: 0, done: false,
         st: freshState(), prev: null, scene: null, tShown: 0,
-        schedIdx: usedSchedIdx,
+        schedIdx: usedSchedIdx, slips: [], guess: null,
         supaId: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : null,
         supaMoves: [], supaStartedAt: stamp() };
   oppSw.className   = 'swatch blind';  oppSw.style.background = '';
@@ -710,7 +927,10 @@ function renderMeter() {
 }
 function play(myMove) {
   const scene = M.scene;
-  const opMove = STRATEGIES[M.key].move(M.op, M.me);
+  const opIntended = STRATEGIES[M.key].move(M.op, M.me);
+  const opMove = act(opIntended);                 // 상대만 실수할 수 있다. 내 버튼은 그대로 나간다
+  const slipped = opMove !== opIntended;
+  if (slipped) M.slips.push(M.me.length + 1);
   const base = PAYOFF[myMove + opMove];
   const { pa, pb } = penalty(myMove, opMove, M.st, M.prev);
   M.myScore += base[0] - pa; M.opScore += base[1] - pb;
@@ -725,10 +945,14 @@ function play(myMove) {
     M.key, scene.t, SCENES.indexOf(scene), myMove, opMove,
     base[0], pa, base[1], pb, M.myScore, M.opScore,
     M.st.ea, M.st.eb, M.st.spiral,
-    rt, RULES_VER ]);
+    rt, RULES_VER,
+    opIntended, slipped ? 1 : 0 ]);   // 뒤에 붙인 두 열: 상대가 원래 의도한 수, 실수였는지
 
   // Supabase용 원본 라운드 기록 — 판이 끝나면 한 번에 묶어서 보낸다
-  M.supaMoves.push({ round_number: M.me.length, choice: myMove, response_time_ms: rt });
+  // 앞의 세 열이 기본, 나머지는 확장 열(supabase-migration.sql)이다
+  M.supaMoves.push({ round_number: M.me.length, choice: myMove, response_time_ms: rt,
+    opp_choice: opMove, opp_intended: opIntended, opp_slip: slipped,
+    scene_tag: scene.t, scene_idx: SCENES.indexOf(scene), my_pen: pa, opp_pen: pb });
 
   setScore(myScore, M.myScore); setScore(opScore, M.opScore);
   const row = document.createElement('div');
@@ -748,7 +972,7 @@ function play(myMove) {
 function endMatch() {
   M.done = true;
   record('HUMAN', M.myScore, M.total, M.me.filter(x => x === 'C').length);
-  M.supaWorldRows = resolveWorld(M.supaId);   // 이 판에 연결된 배경 6쌍 결과 — Supabase world_cycles용
+  M.supaWorldRows = resolveWorld(M.supaId);   // 이 판에 연결된 배경 7쌍 결과 — Supabase world_cycles용
   save(); updateRounds(); renderMeter();
   sceneBox.innerHTML = '';
   choices.style.display = 'none';
@@ -786,15 +1010,29 @@ function reveal(guessKey) {
   const extra = M.myScore < 0
     ? ' 관계가 완전히 무너져 점수가 마이너스로 끝났다.'
     : (avg >= PAYOFF.CC[0] - 0.3 ? ' 거의 완전한 상호 협력이었다.' : '');
+  // 판이 끝났으니 상대의 실수를 공개한다 — 판 도중에는 알 수 없다
+  const slipText = M.slips.length
+    ? `<br>이번 판 상대는 <b style="display:inline">${M.slips.length}번 실수</b>했다
+       (라운드 ${M.slips.join(', ')}). 의도와 반대 수가 나간 것이다.`
+    : (RULES.noise ? '<br>이번 판 상대는 실수 없이 의도대로 두었다.' : '');
+  // 학습형이었다면 그 상대가 나를 어떻게 읽었는지 보여 준다
+  let learnText = '';
+  if (M.key === 'LEARN') {
+    const { p, n } = learnerEstimate(M.op, M.me);
+    learnText = `<br><br><b>학습형이 읽은 당신</b> — 직전 결과(앞 글자가 당신) 뒤에 당신이 협력할 확률:<br>`
+      + STATE_NAMES.map((s, i) => `${s} ${Math.round(p[i]*100)}%<span class="unseen"> (${n[i]}번 관찰)</span>`).join(' · ');
+  }
   verdict.innerHTML = `<div class="verdict ${cls}"><b>${head}</b>
-    라운드당 평균 ${avg.toFixed(2)}점 — 끝까지 서로 협력했다면 ${perfect}점이었다.${extra}</div>`;
+    라운드당 평균 ${avg.toFixed(2)}점 — 끝까지 서로 협력했다면 ${perfect}점이었다.${extra}${slipText}${learnText}</div>`;
 
+  M.guess = guessKey;
   enqueue('matches', [
     `${meta.pid}-m${M.no}`, stamp(), meta.pid, M.no, M.key, M.total,
     M.myScore, M.opScore,
     M.me.filter(x => x === 'C').length, M.op.filter(x => x === 'C').length,
     guessKey || '', guessKey ? (guessKey === M.key ? 1 : 0) : '', RULES_VER,
-    M.schedIdx ]);   // 이 값으로 world 시트의 schedIdx와 번호 대 번호로 조인할 수 있다
+    M.schedIdx,      // 이 값으로 world 시트의 schedIdx와 번호 대 번호로 조인할 수 있다
+    M.slips.length ]);   // 뒤에 붙인 열: 상대의 실수 횟수
   flush();
 
   // Supabase — 세션 1건 + 무브 전체를 한 번에 저장
@@ -923,15 +1161,19 @@ rulesBox.innerHTML = `<b>제재 규칙</b><br>
   · 맞배신이 ${RULES.sFree}회 연속을 넘으면 라운드마다 최대 -${RULES.sCap}점씩 양쪽 다 깎인다.<br>
   · 단, 갈등을 먼저 일으키지 않은 쪽은 그 벌점의 ${RULES.retal*100}%만 받는다.
     보복까지 처벌하면 팃포탯 같은 전략이 억울하게 무너지기 때문이다.<br><br>
+  <b>실수</b><br>
+  · 컴퓨터 전략은 ${Math.round(RULES.noise*100)}% 확률로 의도와 반대 수를 낸다.
+    내가 누른 버튼은 그대로 나간다.<br>
+  · 판 도중에는 상대의 수가 실수였는지 알 수 없다. 판이 끝나면 공개된다.<br><br>
   <b>땅</b><br>
   · 땅은 <b>누적 총점</b>의 상대 비율로 나뉜다. 같은 전략을 다시 만나면 그 땅이 더 커진다.<br>
   · 내가 두는 동안 컴퓨터 전략들도 ${WORLD.live}판을 동시에 진행한다.
     내가 한 라운드 두면 그 대국들도 한 라운드씩 나아가고, 끝난 대국이 땅에 반영된다.<br>
   · 누적 총점이 음수인 전략은 땅을 한 칸도 갖지 못한다.<br><br>
   <b>공정성</b><br>
-  · 12전략이 6쌍으로 <b>동시에</b> 대국하므로 노는 전략이 없다.
+  · ${KEYS.length}전략이 ${WORLD.live}쌍으로 <b>동시에</b> 대국하므로 노는 전략이 없다.
     내가 한 라운드 두면 모두가 한 라운드씩 나아간다.<br>
-  · 그래서 <b>매 순간 13명 전원의 라운드 수가 같다.</b>
+  · 그래서 <b>매 순간 ${KEYS.length + 1}명 전원의 라운드 수가 같다.</b>
     노출이 같으니 누적 총점의 비율이 곧 실력의 비율이다.<br>
   · 내 상대는 그 전략의 <b>복제본</b>이다. 원본은 리그에서 따로 뛰고 있다.
     나를 만났다는 이유로 특정 전략만 노출이 늘어나는 것을 막기 위해서다.<br>
@@ -971,7 +1213,13 @@ btnConsent.onclick = () => {
 if (!RESEARCHER) {
   btnLeague.style.display = 'none';
   btnReset.style.display  = 'none';
+  scenTools.style.display = 'none';
 }
+btnHS.onclick = () => {
+  btnHS.disabled = true; btnHS.textContent = '계산 중…';
+  setTimeout(() => { renderScenario(runScenario(+hsCount.value));
+    btnHS.disabled = false; btnHS.textContent = '악수 시나리오'; }, 20);
+};
 btnC.onclick = () => play('C');
 btnD.onclick = () => play('D');
 btnNext.onclick = newMatch;
@@ -981,7 +1229,8 @@ btnLeague.onclick = () => {
     btnLeague.disabled = false; btnLeague.textContent = '표본 늘리기'; }, 20);
 };
 btnExport.onclick = () => {
-  const blob = new Blob([JSON.stringify({ rules:RULES, world:WORLD, stats, guessLog, frames }, null, 2)],
+  const blob = new Blob([JSON.stringify({ rulesVer:RULES_VER, rules:RULES, world:WORLD, learn:LEARN,
+                                          strategies:KEYS, stats, guessLog, frames }, null, 2)],
                         { type:'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'coop-map-data.json'; a.click();
