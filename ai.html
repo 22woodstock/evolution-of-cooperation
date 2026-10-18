@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>생성형 인공지능과 대결하기 — 협력의 지도</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#101619; --panel:#182126; --panel2:#1E2A30;
+  --line:#2E3F45; --paper:#E4E8E1; --muted:#7E9296;
+  --warn:#E8B64C; --bad:#D4574E; --good:#6FBF8E; --ai:#9FA8F5;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --sans:'IBM Plex Sans KR',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--ink);color:var(--paper);font-family:var(--sans);
+  line-height:1.6;padding:24px 20px 60px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto}
+header{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:26px;
+  display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+h1{font-size:clamp(22px,4vw,30px);font-weight:700;letter-spacing:-.02em}
+.sub{font-family:var(--mono);font-size:12px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px}
+.q{color:var(--muted);font-size:14px;margin-top:6px;max-width:64ch}
+a.back{font-family:var(--mono);font-size:12px;color:var(--muted);text-decoration:none}
+a.back:hover{color:var(--paper)}
+.cols{display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);gap:22px;align-items:start}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:18px}
+.card h2{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.14em;margin-bottom:14px;
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.cond{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:3px;border:1px solid var(--line)}
+.cond.chat{color:var(--ai);border-color:var(--ai)}
+.rounds{font-family:var(--mono);font-size:12px;color:var(--muted);
+  padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.score{display:flex;margin-bottom:12px;font-family:var(--mono)}
+.score div{flex:1}
+.score .lbl{font-size:10px;color:var(--muted);letter-spacing:.1em}
+.score .val{font-size:26px;font-weight:600}
+.score .val.neg{color:var(--bad)}
+.meter{font-family:var(--mono);font-size:11px;margin-bottom:14px;display:flex;flex-direction:column;gap:4px}
+.meter span{color:var(--muted)} .meter b{color:var(--paper);font-weight:500}
+.meter .hot{color:var(--warn)} .meter .burn{color:var(--bad)}
+.scene{background:var(--panel2);border:1px solid var(--line);border-left:2px solid var(--warn);
+  border-radius:3px;padding:13px 14px;margin-bottom:12px}
+.scene .tagline{font-family:var(--mono);font-size:10px;color:var(--warn);
+  letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+.scene p{font-size:14px}
+.bubble{border-radius:10px;padding:9px 12px;font-size:14px;max-width:88%;margin-bottom:8px;white-space:pre-wrap;word-break:keep-all}
+.bubble.ai{background:rgba(159,168,245,.12);border:1px solid rgba(159,168,245,.35);color:var(--paper)}
+.bubble.me{background:var(--panel2);border:1px solid var(--line);margin-left:auto}
+.who{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:2px}
+.who.me{text-align:right}
+.thinking{font-family:var(--mono);font-size:12px;color:var(--ai);margin-bottom:12px;min-height:18px}
+.thinking i{display:inline-block;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.thinking i{animation:none}}
+button{font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;
+  border-radius:3px;padding:13px 10px;transition:.15s;border:1px solid}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
+button:disabled{opacity:.35;cursor:not-allowed}
+.choices{display:flex;flex-direction:column;gap:9px;margin-bottom:16px}
+.opt{text-align:left;font-size:14px;font-weight:500;line-height:1.45;padding:12px 14px;display:flex;gap:11px;align-items:flex-start}
+.opt .k{font-family:var(--mono);font-size:11px;font-weight:600;flex:none;padding-top:2px;opacity:.75}
+.b-c{background:transparent;border-color:var(--good);color:var(--good)}
+.b-c:hover:not(:disabled){background:rgba(111,191,142,.14)}
+.b-d{background:transparent;border-color:var(--bad);color:var(--bad)}
+.b-d:hover:not(:disabled){background:rgba(212,87,78,.14)}
+.b-next{width:100%;background:var(--paper);border-color:var(--paper);color:var(--ink);margin-bottom:12px}
+.b-next:hover:not(:disabled){background:#fff}
+.b-ghost{background:transparent;border-color:var(--line);color:var(--muted);font-size:12px;font-weight:500;padding:9px 14px}
+.b-ghost:hover{border-color:var(--muted);color:var(--paper)}
+.say{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.say textarea{width:100%;min-height:64px;resize:vertical;background:var(--ink);color:var(--paper);
+  border:1px solid var(--line);border-radius:3px;padding:10px;font-family:var(--sans);font-size:14px}
+.say .hint{font-size:12px;color:var(--muted)}
+.say .row{display:flex;gap:8px}
+.say .row button{flex:1}
+.log{font-family:var(--mono);font-size:11.5px;max-height:220px;overflow-y:auto;border-top:1px solid var(--line);padding-top:10px}
+.log-row{display:flex;gap:7px;padding:3px 0;color:var(--muted);align-items:baseline}
+.log .n{width:20px;flex:none}
+.tag{font-weight:600} .tag.C{color:var(--good)} .tag.D{color:var(--bad)}
+.pen{color:var(--bad);margin-left:auto;font-weight:600}
+.verdict{background:var(--panel2);border-left:2px solid var(--ai);padding:11px 13px;font-size:13px;margin-bottom:14px}
+.verdict b{display:block;margin-bottom:2px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:left;
+  text-transform:uppercase;letter-spacing:.1em;padding:0 6px 8px 0;font-weight:500}
+td{padding:6px 6px 6px 0;border-top:1px solid var(--line);vertical-align:top}
+td.n{font-family:var(--mono);color:var(--muted);width:24px}
+td.mv{font-family:var(--mono);width:44px}
+.chatlog{max-height:520px;overflow-y:auto;padding-right:4px}
+.empty{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;padding:26px 0}
+.status{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.status i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;flex:none}
+.status i.ok{background:var(--good)} .status i.err{background:var(--bad)} .status i.wait{background:var(--warn)}
+.gate{position:fixed;inset:0;background:rgba(16,22,25,.97);z-index:99;display:flex;align-items:center;
+  justify-content:center;padding:24px;overflow-y:auto}
+.gate .box{max-width:560px;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:26px}
+.gate h3{font-size:19px;font-weight:700;margin-bottom:4px}
+.gate .pid{font-family:var(--mono);font-size:12px;color:var(--warn);margin-bottom:16px}
+.gate ul{list-style:none;font-size:13.5px;color:var(--muted);margin-bottom:18px}
+.gate li{padding:5px 0 5px 16px;position:relative}
+.gate li::before{content:'·';position:absolute;left:4px;color:var(--warn)}
+.gate li b{color:var(--paper);font-weight:500}
+.gate .b-next{margin:0}
+.setup{font-size:13px;color:var(--muted)}
+.setup ol{padding-left:20px;margin:8px 0}
+.setup li{margin:3px 0}
+.setup code{font-family:var(--mono);font-size:12px;color:var(--paper);background:var(--panel2);padding:1px 5px;border-radius:2px}
+.research{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);display:none}
+.research label{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
+.research input,.research select{background:var(--ink);color:var(--paper);border:1px solid var(--line);
+  border-radius:3px;padding:6px 8px;font-family:var(--mono);font-size:12px}
+.research input{flex:1;min-width:180px}
+.note{font-size:12px;color:var(--muted);margin-top:12px}
+</style>
+</head>
+<body>
+<!-- 동의 화면 — 실험실 노트북에서 참가자가 바뀔 때마다 다시 뜬다 -->
+<div class="gate" id="gate" style="display:none"><div class="box">
+  <h3>생성형 인공지능과 대결하기 — 참가 안내</h3>
+  <p class="pid" id="gatePid"></p>
+  <ul>
+    <li>이 게임의 상대는 <b>이 노트북 안에서 돌아가는 생성형 인공지능</b>입니다
+        (LG AI연구원의 공개 모델 EXAONE 3.5 7.8B). 대화 내용은 외부 AI 회사로 전송되지 않습니다.</li>
+    <li>판에 따라 <b>상대와 한 마디씩 대화</b>할 수 있습니다. 대화가 없는 판도 있습니다.</li>
+    <li>기록되는 것: <b>매 라운드의 선택, 상황 종류, 점수, 결정에 걸린 시간, 주고받은 대화</b>.</li>
+    <li>기록되지 않는 것: 이름, 이메일, 위치. <b>대화에 이름·학교·연락처 같은 개인정보를 쓰지 마세요.</b></li>
+    <li>AI는 실수하거나 이상한 말을 할 수 있습니다. 이상한 내용이 나오면 연구자에게 알려 주세요.</li>
+    <li>데이터는 이 학생 연구 프로젝트의 발표에만 쓰입니다. 언제든 그만둘 수 있고, 불이익은 없습니다.</li>
+  </ul>
+  <button class="b-next" id="btnConsent">이해했고, 참여합니다</button>
+</div></div>
+
+<div class="wrap">
+<header>
+  <div>
+    <p class="sub">Iterated Social Dilemma · Generative AI Opponent</p>
+    <h1>생성형 인공지능과 대결하기</h1>
+    <p class="q">상대는 정해진 규칙이 없는 언어 모델이다. 매 라운드 상황을 읽고 스스로 협력할지 배신할지 정한다.
+       어떤 판에서는 서로 한 마디씩 말을 주고받을 수 있다.</p>
+  </div>
+  <a class="back" id="backLink" href="./">← 협력의 지도로</a>
+</header>
+
+<div class="cols">
+  <section class="card">
+    <h2><span>대국</span><span class="cond" id="condTag"></span></h2>
+    <p class="rounds" id="roundInfo"></p>
+    <div class="score">
+      <div><div class="lbl">나</div><div class="val" id="myScore">0</div></div>
+      <div><div class="lbl">AI</div><div class="val" id="aiScore">0</div></div>
+    </div>
+    <div class="meter" id="meter"></div>
+    <div id="verdict"></div>
+    <div id="aiSays"></div>
+    <div class="thinking" id="thinking"></div>
+    <div id="sceneBox"></div>
+    <div class="choices" id="choices">
+      <button class="opt b-c" id="btnC"><span class="k">1</span><span id="txtC"></span></button>
+      <button class="opt b-d" id="btnD"><span class="k">2</span><span id="txtD"></span></button>
+    </div>
+    <div class="say" id="sayBox" style="display:none">
+      <label class="hint" for="sayText">AI에게 한 마디 (다음 라운드 전에 전달된다 · 개인정보 금지 · 최대 120자)</label>
+      <textarea id="sayText" maxlength="120" placeholder="예: 이번엔 같이 하자"></textarea>
+      <div class="row">
+        <button class="b-next" id="btnSay">보내고 다음 라운드</button>
+        <button class="b-ghost" id="btnSilent">말 없이 넘어가기</button>
+      </div>
+    </div>
+    <button class="b-next" id="btnNext" style="display:none">다음 판</button>
+    <button class="b-next" id="btnStart" style="display:none">시작하기</button>
+    <div class="log" id="log"></div>
+    <div class="status" id="status"></div>
+  </section>
+
+  <section class="card">
+    <h2><span id="rightTitle">AI 연결</span></h2>
+    <div id="rightBox"></div>
+    <div class="research" id="research">
+      <b style="color:var(--paper)">연구자 설정</b>
+      <label>LM Studio 주소 <input id="cfgUrl"></label>
+      <label>모델 <select id="cfgModel"></select></label>
+      <label>이번 판 조건
+        <select id="cfgCond"><option value="">무작위</option><option value="chat">대화 있음</option><option value="silent">대화 없음</option></select>
+      </label>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="b-ghost" id="btnRecheck">연결 다시 확인</button>
+        <button class="b-ghost" id="btnNewPid">새 참가자로 시작</button>
+      </div>
+      <p class="note">참가자가 바뀔 때마다 <b>새 참가자로 시작</b>을 누르세요. 새 참가 코드가 발급되고 동의 화면이 다시 뜹니다.</p>
+    </div>
+  </section>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+/* ═══════════════════════════════════════════════
+   0. 설정
+   ═══════════════════════════════════════════════ */
+const RESEARCH_KEY = '100916';
+const RESEARCHER = location.search.includes(RESEARCH_KEY);
+const params = new URLSearchParams(location.search);
+
+const LLM = {
+  url:   params.get('llm') || 'http://localhost:1234',   // LM Studio 로컬 서버 기본 주소
+  model: params.get('model') || '',                      // 비우면 이름에 exaone이 들어간 모델을 찾는다
+  prefer: /exaone/i,
+  temperature: 0.7,
+  maxTokens: 220,
+  timeoutMs: 90000,      // 한 번 요청에 기다리는 최대 시간
+  retries: 1,            // 형식이 틀리면 다시 묻는 횟수
+  promptVer: 'p1',       // 지시문을 바꾸면 이 값도 바꾼다 — 데이터 구분용
+};
+
+/* 게임 규칙 — 메인 화면(index.html)과 같은 값이어야 한다.
+   실수(noise)는 컴퓨터 전략에만 있는 장치라 AI 대결에는 넣지 않는다. */
+const PAYOFF = { CC:[3,3], CD:[0,5], DC:[5,0], DD:[1,1] };
+const RULES = { roundsMin:20, roundsMax:30, eFree:3, eStep:1, eCap:4, sFree:4, sStep:1, sCap:3, retal:0.25 };
+
+const SCENES = [
+  { t:'학교', s:'조별 과제 마감이 내일이다.', c:'밤을 새워 정리한 자료를 조원 전체에게 공유한다.', d:'남이 올린 자료만 받아 두고 내 몫은 미룬다.' },
+  { t:'학교', s:'혼자 정리한 시험 족보가 있다.', c:'반 전체가 볼 수 있게 올린다.', d:'없다고 말하고 나만 본다.' },
+  { t:'학교', s:'발표가 끝나고 공로를 적어 내야 한다.', c:'도와준 사람들 이름을 함께 올린다.', d:'내 이름만 올린다.' },
+  { t:'학교', s:'익명으로 동료 평가를 쓴다.', c:'본 대로 공정하게 쓴다.', d:'경쟁자를 낮게 매긴다.' },
+  { t:'공공', s:'급식 줄이 길게 늘어서 있다.', c:'줄 맨 뒤에 선다.', d:'아는 사람 앞에 끼어든다.' },
+  { t:'공공', s:'주인 없는 무인 가게에서 물건을 집었다.', c:'가격표대로 돈을 넣는다.', d:'적게 넣고 나온다.' },
+  { t:'공공', s:'공유 자전거를 다 탔다.', c:'반납대에 제대로 세운다.', d:'다음에 편하게 쓰려고 골목에 숨겨 둔다.' },
+  { t:'공공', s:'지하철에 자리가 하나 남았다.', c:'더 필요해 보이는 사람에게 양보한다.', d:'먼저 가서 앉는다.' },
+  { t:'자원', s:'도서관 콘센트가 하나뿐이고 뒤에 대기가 있다.', c:'충전이 끝나면 바로 자리를 비운다.', d:'다 됐어도 자리를 계속 잡고 있는다.' },
+  { t:'자원', s:'동아리 예산 신청서를 쓴다.', c:'실제로 필요한 만큼만 적는다.', d:'깎일 걸 대비해 넉넉히 부풀린다.' },
+  { t:'자원', s:'가뭄으로 마을 우물에 배급제가 걸렸다.', c:'정해진 양만 길어 간다.', d:'밤에 몰래 더 퍼 간다.' },
+  { t:'자원', s:'회비를 정산하는데 계산이 애매하다.', c:'정확히 나눠 돌려준다.', d:'모르는 척 조금 더 챙긴다.' },
+  { t:'관계', s:'비를 맞으며 우산 하나를 나눠 쓴다.', c:'가운데로 들어 반씩 젖는다.', d:'내 쪽으로 당겨 상대만 젖게 한다.' },
+  { t:'관계', s:'중고로 팔 물건에 흠집이 있다.', c:'미리 알리고 값을 깎는다.', d:'사진 각도로 가린다.' },
+  { t:'관계', s:'친구에 대한 소문을 들었다.', c:'옮기지 않고 덮는다.', d:'재미 삼아 퍼뜨린다.' },
+  { t:'위기', s:'구조 보트에 자리가 모자라고 합의된 순서가 있다.', c:'합의한 순서대로 태운다.', d:'우리 쪽 사람을 먼저 밀어 넣는다.' },
+  { t:'위기', s:'백신이 지역별로 배분되었다.', c:'배정된 물량만 가져간다.', d:'우리 지역 몫을 더 챙긴다.' },
+  { t:'위기', s:'산불이 번져 공동 방화선을 파야 한다.', c:'다 같이 마을 방화선을 판다.', d:'내 밭 주변만 파고 빠진다.' },
+];
+
+/* 제재 — index.html의 penalty()와 같은 계산. a = 사람, b = AI */
+function penalty(ma, mb, st, prev) {
+  let pa = 0, pb = 0;
+  if (ma === 'D' && mb === 'C') { st.ea++;
+    if (st.ea > RULES.eFree) pa += Math.round(Math.min(RULES.eCap, (st.ea - RULES.eFree) * RULES.eStep)); }
+  if (mb === 'D' && ma === 'C') { st.eb++;
+    if (st.eb > RULES.eFree) pb += Math.round(Math.min(RULES.eCap, (st.eb - RULES.eFree) * RULES.eStep)); }
+  if (ma === 'D' && mb === 'D') {
+    if (st.spiral === 0) {
+      if (!prev) st.inst = 'both';
+      else if (prev.a === 'D' && prev.b === 'C') st.inst = 'a';
+      else if (prev.b === 'D' && prev.a === 'C') st.inst = 'b';
+      else st.inst = 'both';
+    }
+    st.spiral++;
+    if (st.spiral > RULES.sFree) {
+      const q = Math.min(RULES.sCap, (st.spiral - RULES.sFree) * RULES.sStep);
+      pa += Math.round(q * (st.inst === 'b' ? RULES.retal : 1));
+      pb += Math.round(q * (st.inst === 'a' ? RULES.retal : 1));
+    }
+  } else { st.spiral = 0; st.inst = null; }
+  return { pa, pb };
+}
+const freshState = () => ({ ea:0, eb:0, spiral:0, inst:null });
+const KO = { C:'협력', D:'배신' };
+const stamp = () => new Date().toISOString();
+const $ = id => document.getElementById(id);
+
+/* ═══════════════════════════════════════════════
+   1. 참가 코드 — 메인 화면과 같은 저장소를 쓴다.
+   실험실 노트북 한 대를 여러 명이 쓰므로 "새 참가자로 시작"이 필요하다.
+   ═══════════════════════════════════════════════ */
+const META_KEY = 'coop-meta-v3';
+let meta = null;
+function safeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function safeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function newPid() {
+  const ch = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = ''; for (let i = 0; i < 4; i++) s += ch[Math.floor(Math.random() * ch.length)];
+  return (RESEARCHER ? 'R-' : 'P-') + s;
+}
+function freshMeta() { return { pid:newPid(), startedAt:stamp(), consentAt:null, aiConsentAt:null, matchNo:0, aiMatchNo:0 }; }
+function loadMeta() {
+  try { meta = JSON.parse(safeGet(META_KEY) || 'null'); } catch (e) { meta = null; }
+  if (!meta || !meta.pid || !meta.pid.startsWith(RESEARCHER ? 'R-' : 'P-')) meta = freshMeta();
+  meta.aiMatchNo = meta.aiMatchNo || 0;
+  saveMeta();
+}
+function saveMeta() { safeSet(META_KEY, JSON.stringify(meta)); }
+
+/* ═══════════════════════════════════════════════
+   2. Supabase — 메인 화면과 같은 프로젝트
+   sessions.opponent_strategy 에 조건을 적는다: LLM_CHAT / LLM_SILENT
+   대화와 AI의 이유는 llm_turns 테이블에 들어간다(supabase-llm.sql).
+   ═══════════════════════════════════════════════ */
+const SUPA = { url:'https://urygeeiefkbkfdmlnxtg.supabase.co',
+               key:'sb_publishable_J7zF8IK4o7RU9xVZDRKCwg_r2O30VV7', on:true };
+let supa = null, supaUserId = null;
+const supaReady = (async () => {
+  if (!SUPA.on) return;
+  try {
+    supa = window.supabase.createClient(SUPA.url, SUPA.key);
+    let { data: { session } } = await supa.auth.getSession();
+    if (!session) { const { data, error } = await supa.auth.signInAnonymously(); if (error) throw error; session = data.session; }
+    supaUserId = session.user.id;
+  } catch (e) { console.warn('Supabase 연결 실패 — 기록은 이 브라우저의 내보내기로만 남는다', e); }
+})();
+const pick = (o, keys) => Object.fromEntries(keys.filter(k => k in o).map(k => [k, o[k]]));
+const BASE_COLS = {
+  sessions: ['id','user_id','opponent_strategy','total_rounds','final_score','started_at','ended_at'],
+  moves:    ['session_id','round_number','choice','response_time_ms'],
+};
+let extOk = true;
+function missingColumn(err) {
+  const m = String((err && (err.message || err.details)) || '');
+  return (err && err.code === 'PGRST204') || /column/i.test(m);
+}
+async function insertRows(table, rows) {
+  if (extOk || !BASE_COLS[table]) {
+    const { error } = await supa.from(table).insert(rows);
+    if (!error) return;
+    if (!BASE_COLS[table] || !missingColumn(error)) throw error;
+    extOk = false;
+  }
+  const base = Array.isArray(rows) ? rows.map(r => pick(r, BASE_COLS[table])) : pick(rows, BASE_COLS[table]);
+  const { error } = await supa.from(table).insert(base);
+  if (error) throw error;
+}
+async function saveMatch(m) {
+  // 연결이 안 돼도 판 기록은 이 브라우저에 남겨 둔다(내보내기용)
+  const local = JSON.parse(safeGet('coop-ai-log-v1') || '[]');
+  local.push({ pid: meta.pid, no: m.no, cond: m.cond, model: m.model, rulesVer: m.rulesVer, total: m.total,
+               myScore: m.myScore, aiScore: m.aiScore, turns: m.turns, at: stamp() });
+  safeSet('coop-ai-log-v1', JSON.stringify(local));
+
+  await supaReady;
+  if (!supa || !supaUserId || !m.id) return { ok:false, why:'Supabase 미연결' };
+  try {
+    await insertRows('sessions', {
+      id: m.id, user_id: supaUserId, opponent_strategy: m.cond === 'chat' ? 'LLM_CHAT' : 'LLM_SILENT',
+      total_rounds: m.total, final_score: m.myScore, started_at: m.startedAt, ended_at: stamp(),
+      rules_ver: m.rulesVer, participant_code: meta.pid, guess: null });
+    await insertRows('moves', m.turns.map(t => ({
+      session_id: m.id, round_number: t.round, choice: t.human, response_time_ms: t.rt,
+      opp_choice: t.ai, opp_intended: t.ai, opp_slip: false,
+      scene_tag: t.sceneTag, scene_idx: t.sceneIdx, my_pen: t.pa, opp_pen: t.pb })));
+    try {
+      await insertRows('llm_turns', m.turns.map(t => ({
+        session_id: m.id, round_number: t.round, condition: m.cond, model: m.model, prompt_ver: LLM.promptVer,
+        ai_choice: t.ai, ai_reason: t.reason, ai_message: t.aiMsg, human_message: t.humanMsg,
+        ai_latency_ms: t.latency, human_wait_ms: t.wait, attempts: t.attempts, fallback: t.fallback,
+        raw_output: t.raw })));
+    } catch (e) {
+      console.warn('llm_turns 저장 실패 — supabase-llm.sql 을 실행했는지 확인하세요', e);
+      return { ok:false, why:'대화 기록 테이블(llm_turns) 없음' };
+    }
+    return { ok:true };
+  } catch (e) { console.warn('Supabase 저장 실패', e); return { ok:false, why: e.message || '저장 실패' }; }
+}
+
+/* ═══════════════════════════════════════════════
+   3. 언어 모델 연결 — LM Studio의 OpenAI 호환 API
+   ═══════════════════════════════════════════════ */
+let llmOk = false, llmModels = [];
+async function checkLLM() {
+  setStatus('wait', 'AI 연결 확인 중…');
+  try {
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(LLM.url.replace(/\/$/, '') + '/v1/models', { signal: ctrl.signal });
+    clearTimeout(t);
+    const j = await res.json();
+    llmModels = (j.data || []).map(x => x.id);
+    if (!llmModels.length) throw new Error('불러온 모델이 없음');
+    if (!LLM.model || !llmModels.includes(LLM.model))
+      LLM.model = llmModels.find(id => LLM.prefer.test(id)) || llmModels[0];
+    llmOk = true;
+    setStatus('ok', `AI 연결됨 · ${LLM.model}`);
+  } catch (e) {
+    llmOk = false;
+    setStatus('err', 'AI에 연결되지 않음');
+  }
+  renderResearch();
+  return llmOk;
+}
+
+function systemPrompt(cond) {
+  return [
+    '너는 "협력의 지도"라는 게임에 참가한 플레이어야. 상대는 사람이다.',
+    '매 라운드 상황 카드를 보고 "협력" 또는 "배신" 중 하나를 고른다. 두 사람은 동시에 고르고, 고른 뒤에 서로의 선택이 공개된다.',
+    `점수: 둘 다 협력하면 각 ${PAYOFF.CC[0]}점, 둘 다 배신하면 각 ${PAYOFF.DD[0]}점, 나만 배신하면 나 ${PAYOFF.DC[0]}점·상대 ${PAYOFF.DC[1]}점, 나만 협력하면 나 ${PAYOFF.CD[0]}점·상대 ${PAYOFF.CD[1]}점.`,
+    `벌점: 상대가 협력하는데 나만 배신한 횟수가 ${RULES.eFree}번을 넘으면 그 뒤로 그런 배신마다 나만 최대 ${RULES.eCap}점이 깎인다. 서로 배신이 ${RULES.sFree}번 연속을 넘으면 라운드마다 둘 다 최대 ${RULES.sCap}점이 깎이고, 갈등을 먼저 일으키지 않은 쪽은 그 벌점의 ${RULES.retal*100}%만 받는다.`,
+    '게임이 모두 몇 라운드인지는 아무도 모른다. 목표는 너 자신의 총점을 높이는 것이다.',
+    '너는 AI 비서가 아니라 게임 상대다. 게임 이론을 설명하지 마.',
+    cond === 'chat'
+      ? '매 라운드 상대에게 한 마디를 할 수 있다. 친구처럼 반말로, 한국어로만, 한두 문장으로 짧게 말해. 상대의 이름, 학교, 나이, 연락처 같은 개인정보는 절대 묻지 마.'
+      : '이번 판에서는 상대와 대화할 수 없다. 선택과 이유만 쓴다.',
+    '반드시 아래 형식으로만 답해. 다른 말은 쓰지 마.',
+    '선택: 협력 또는 배신',
+    '이유: (왜 그렇게 골랐는지 한 문장. 상대에게는 보이지 않는다)',
+    ...(cond === 'chat' ? ['메시지: (상대에게 하는 말 한두 문장)'] : []),
+  ].join('\n');
+}
+
+function roundPrompt(m) {
+  const r = m.turns.length + 1, last = m.turns[m.turns.length - 1];
+  const lines = [`[${r}라운드]`];
+  if (last) {
+    lines.push(`지난 라운드: 상대 ${KO[last.human]}, 너 ${KO[last.ai]}. 지난 라운드 점수: 너 ${fmt(last.aiGain)}, 상대 ${fmt(last.humanGain)}.`);
+    lines.push(`누적 점수: 너 ${m.aiScore}, 상대 ${m.myScore}.`);
+    lines.push(`벌점 현황: 너의 일방적 배신 ${m.st.eb}번, 상대의 일방적 배신 ${m.st.ea}번, 서로 배신 연속 ${m.st.spiral}번.`);
+    if (m.cond === 'chat') lines.push(last.humanMsg ? `상대의 메시지: "${last.humanMsg}"` : '상대는 이번에 아무 말도 하지 않았다.');
+  } else {
+    lines.push('첫 라운드다. 아직 기록이 없다.');
+  }
+  lines.push(`상황: ${m.scene.s}`);
+  lines.push(`협력 = ${m.scene.c}`);
+  lines.push(`배신 = ${m.scene.d}`);
+  return lines.join('\n');
+}
+const fmt = v => (v >= 0 ? '+' : '') + v;
+
+/* 답을 읽는다. 형식이 틀리면 null */
+function parseReply(text, cond) {
+  const clean = String(text || '').replace(/\r/g, '').trim();
+  const ch = clean.match(/선택\s*[:：]\s*\**\s*(협력|배신)/);
+  if (!ch) return null;
+  const reason = (clean.match(/이유\s*[:：]\s*(.+)/) || [])[1] || '';
+  let msg = '';
+  if (cond === 'chat') {
+    const mm = clean.match(/메시지\s*[:：]\s*([\s\S]+)/);
+    msg = mm ? mm[1].split(/\n\s*(선택|이유)\s*[:：]/)[0].trim() : '';
+    if (!msg) return null;
+    msg = msg.replace(/^["“]|["”]$/g, '').slice(0, 200);
+  }
+  const foreign = /[一-鿿぀-ヿ]/.test(msg + reason);   // 한자·일본어가 섞였는지
+  return { choice: ch[1] === '협력' ? 'C' : 'D', reason: reason.trim().slice(0, 300), msg, foreign };
+}
+
+async function callLLM(messages) {
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), LLM.timeoutMs);
+  try {
+    const res = await fetch(LLM.url.replace(/\/$/, '') + '/v1/chat/completions', {
+      method:'POST', headers:{ 'Content-Type':'application/json' }, signal: ctrl.signal,
+      body: JSON.stringify({ model: LLM.model, messages, temperature: LLM.temperature,
+                             max_tokens: LLM.maxTokens, stream: false }) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const j = await res.json();
+    return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+  } finally { clearTimeout(t); }
+}
+
+/* 한 라운드의 AI 수를 정한다. 라운드가 시작되자마자 부르고, 사람이 읽는 동안 기다린다.
+   AI는 사람의 이번 수를 절대 보지 못한다 — 동시에 고르는 게임이기 때문이다. */
+async function decideAI(m) {
+  const user = { role:'user', content: roundPrompt(m) };
+  const base = [{ role:'system', content: systemPrompt(m.cond) }, ...m.history, user];
+  const t0 = performance.now();
+  let raw = '', parsed = null, attempts = 0, lastErr = '';
+  for (; attempts <= LLM.retries && !parsed; attempts++) {
+    const msgs = attempts === 0 ? base
+      : [...base, { role:'assistant', content: raw },
+         { role:'user', content: '형식이 틀렸어. 정해진 형식 그대로, 한국어로만 다시 답해.' }];
+    try {
+      raw = await callLLM(msgs);
+      parsed = parseReply(raw, m.cond);
+      if (parsed && parsed.foreign && attempts < LLM.retries) { lastErr = 'foreign'; parsed = null; }
+    } catch (e) { lastErr = e.name === 'AbortError' ? '시간 초과' : (e.message || '연결 오류'); raw = raw || ''; }
+  }
+  const latency = Math.round(performance.now() - t0);
+  if (!parsed) {
+    // 끝내 실패하면 사람의 지난 수를 따라 한다(팃포탯과 같은 중립적인 기본값) — 분석 때 fallback 으로 걸러낸다
+    const last = m.turns[m.turns.length - 1];
+    return { choice: last ? last.human : 'C', reason: '', msg: m.cond === 'chat' ? '…' : '', raw: String(raw).slice(0, 2000),
+             latency, attempts, fallback: true, err: lastErr, user };
+  }
+  return { ...parsed, raw: String(raw).slice(0, 2000), latency, attempts, fallback: false, user };
+}
+
+/* ═══════════════════════════════════════════════
+   4. 대국
+   ═══════════════════════════════════════════════ */
+let M = null;
+const randRounds = () => RULES.roundsMin + Math.floor(Math.random() * (RULES.roundsMax - RULES.roundsMin + 1));
+function pickScene(ex) { let s; do { s = SCENES[Math.floor(Math.random() * SCENES.length)]; } while (s === ex); return s; }
+
+function pickCondition() {
+  const forced = RESEARCHER ? $('cfgCond').value : '';
+  if (forced) return forced;
+  // 같은 참가자 안에서 대화 있음/없음이 번갈아 나오게 — 첫 판만 무작위
+  if (!meta.aiFirstCond) { meta.aiFirstCond = Math.random() < 0.5 ? 'chat' : 'silent'; saveMeta(); }
+  const flip = (meta.aiMatchNo % 2 === 1);
+  return flip ? (meta.aiFirstCond === 'chat' ? 'silent' : 'chat') : meta.aiFirstCond;
+}
+
+function newMatch() {
+  const cond = pickCondition();
+  meta.aiMatchNo++; saveMeta();
+  M = { no: meta.aiMatchNo, cond, total: randRounds(), model: LLM.model,
+        rulesVer: `llm1_${LLM.promptVer}_${(LLM.model || 'unknown').replace(/[^\w.-]+/g, '-')}_t${LLM.temperature}_e${RULES.eFree}-${RULES.eCap}_s${RULES.sFree}-${RULES.sCap}_r${RULES.retal}`,
+        id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : null, startedAt: stamp(),
+        turns: [], history: [], myScore: 0, aiScore: 0, st: freshState(), prev: null,
+        scene: null, pending: null, done: false, tShown: 0 };
+  $('condTag').textContent = cond === 'chat' ? '대화 있는 판' : '대화 없는 판';
+  $('condTag').className = 'cond' + (cond === 'chat' ? ' chat' : '');
+  $('verdict').innerHTML = ''; $('log').innerHTML = ''; $('aiSays').innerHTML = '';
+  $('btnNext').style.display = 'none'; $('btnStart').style.display = 'none';
+  setScore('myScore', 0); setScore('aiScore', 0);
+  renderChat();
+  startRound();
+}
+
+function startRound() {
+  M.scene = pickScene(M.scene);
+  $('sceneBox').innerHTML = `<div class="scene"><div class="tagline">${M.scene.t}</div><p>${M.scene.s}</p></div>`;
+  $('txtC').textContent = M.scene.c; $('txtD').textContent = M.scene.d;
+  $('choices').style.display = 'flex'; $('sayBox').style.display = 'none';
+  $('roundInfo').textContent = `라운드 ${M.turns.length + 1} · 총 라운드 수 비공개 (${RULES.roundsMin}~${RULES.roundsMax})`;
+  renderMeter();
+  // 화면에 상황이 뜨는 순간 AI에게 묻는다
+  const ask = decideAI(M);
+  M.pending = { promise: ask, result: null, t0: performance.now() };
+  ask.then(r => { if (M && M.pending && M.pending.promise === ask) M.pending.result = r; });
+
+  if (M.cond === 'chat') {
+    // 대화 판: AI의 한 마디를 읽고 고르도록, AI가 답할 때까지 버튼을 잠근다
+    lockChoices(true); showThinking(true);
+    ask.then(r => {
+      if (!M || M.pending.promise !== ask) return;
+      showThinking(false); showAiSays(r);
+      lockChoices(false); M.tShown = performance.now();
+    });
+  } else {
+    // 대화 없는 판: 바로 고를 수 있다. AI는 뒤에서 답을 준비한다
+    showThinking(false); $('aiSays').innerHTML = '';
+    lockChoices(false); M.tShown = performance.now();
+  }
+}
+
+async function play(human) {
+  if (!M || M.done || $('btnC').disabled) return;
+  const rt = Math.round(performance.now() - M.tShown);
+  lockChoices(true);
+  const tw = performance.now();
+  if (!M.pending.result) showThinking(true);
+  const r = await M.pending.promise;          // AI가 아직이면 기다린다
+  const wait = Math.round(performance.now() - tw);
+  showThinking(false);
+
+  const ai = r.choice;
+  const base = PAYOFF[human + ai];
+  const { pa, pb } = penalty(human, ai, M.st, M.prev);
+  const humanGain = base[0] - pa, aiGain = base[1] - pb;
+  M.myScore += humanGain; M.aiScore += aiGain; M.prev = { a: human, b: ai };
+
+  // AI의 대화 기억에 이번 라운드를 남긴다 — 다음 요청은 이 뒤에 이어 붙어 빨라진다
+  M.history.push(r.user, { role:'assistant', content: r.fallback ? `선택: ${KO[ai]}` : r.raw.trim() });
+
+  M.turns.push({ round: M.turns.length + 1, human, ai, rt, wait, pa, pb, humanGain, aiGain,
+                 sceneTag: M.scene.t, sceneIdx: SCENES.indexOf(M.scene),
+                 reason: r.reason, aiMsg: r.msg, humanMsg: null,
+                 latency: r.latency, attempts: r.attempts, fallback: r.fallback, raw: r.raw });
+  setScore('myScore', M.myScore); setScore('aiScore', M.aiScore);
+  addLog(human, ai, humanGain, aiGain, pa || pb);
+  renderMeter();
+
+  if (M.turns.length >= M.total) return endMatch();
+  if (M.cond === 'chat') {
+    $('choices').style.display = 'none'; $('sayBox').style.display = 'flex';
+    $('sayText').value = ''; $('sayText').focus();
+  } else startRound();
+}
+
+function sendSay(silent) {
+  const t = silent ? '' : $('sayText').value.trim().slice(0, 120);
+  M.turns[M.turns.length - 1].humanMsg = t || null;
+  renderChat();
+  startRound();
+}
+
+function endMatch() {
+  M.done = true;
+  $('choices').style.display = 'none'; $('sayBox').style.display = 'none';
+  $('sceneBox').innerHTML = ''; $('aiSays').innerHTML = ''; $('meter').innerHTML = '';
+  $('roundInfo').textContent = `종료 · 총 ${M.total}라운드`;
+  const hc = M.turns.filter(t => t.human === 'C').length, ac = M.turns.filter(t => t.ai === 'C').length;
+  const fb = M.turns.filter(t => t.fallback).length;
+  $('verdict').innerHTML = `<div class="verdict"><b>판이 끝났다.</b>
+    나 ${M.myScore}점 (협력 ${hc}/${M.total}) · AI ${M.aiScore}점 (협력 ${ac}/${M.total}).
+    오른쪽에서 AI가 매 라운드 왜 그렇게 골랐는지 볼 수 있다.${fb ? `<br><span style="color:var(--muted)">AI가 답을 못 해 기본 수로 대신한 라운드 ${fb}개 — 분석에서 따로 표시된다.</span>` : ''}</div>`;
+  renderReasons();
+  $('btnNext').style.display = 'block';
+  const m = M;
+  setStatus('wait', '기록 저장 중…');
+  saveMatch(m).then(s => setStatus(s.ok ? 'ok' : 'err', s.ok ? `${meta.pid} · 기록 저장됨` : `${meta.pid} · 저장 문제: ${s.why} (이 브라우저에는 남음)`));
+}
+
+/* ═══════════════════════════════════════════════
+   5. 화면
+   ═══════════════════════════════════════════════ */
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function setScore(id, v) { $(id).textContent = v; $(id).className = 'val' + (v < 0 ? ' neg' : ''); }
+function lockChoices(on) { $('btnC').disabled = $('btnD').disabled = on; }
+function showThinking(on) { $('thinking').innerHTML = on ? 'AI가 생각하는 중 <i>…</i>' : ''; }
+function showAiSays(r) {
+  $('aiSays').innerHTML = r.msg ? `<div class="who">AI</div><div class="bubble ai">${esc(r.msg)}</div>` : '';
+}
+function setStatus(cls, msg) { $('status').innerHTML = `<i class="${cls}"></i><span>${esc(msg)}</span>`; }
+function addLog(h, a, hg, ag, pen) {
+  const row = document.createElement('div'); row.className = 'log-row';
+  row.innerHTML = `<span class="n">${M.turns.length}</span>
+    <span>나 <b class="tag ${h}">${KO[h]}</b></span><span>AI <b class="tag ${a}">${KO[a]}</b></span>
+    <span class="pen">${fmt(hg)} / ${fmt(ag)}${pen ? ' ⚑' : ''}</span>`;
+  $('log').prepend(row);
+}
+function renderMeter() {
+  if (!M || M.done) { $('meter').innerHTML = ''; return; }
+  const { ea, eb, spiral } = M.st;
+  const eNext = ea + 1 > RULES.eFree ? Math.round(Math.min(RULES.eCap, (ea + 1 - RULES.eFree) * RULES.eStep)) : 0;
+  const sNow = spiral > RULES.sFree ? Math.min(RULES.sCap, (spiral - RULES.sFree) * RULES.sStep) : 0;
+  $('meter').innerHTML =
+    `<div><span>내 일방적 배신</span> <b class="${eNext?'hot':''}">${ea}회</b>
+      <span>${eNext ? `· 다음 배신은 -${eNext}점` : `· ${RULES.eFree}회까지는 벌점 없음`}</span></div>
+     <div><span>맞배신 연속</span> <b class="${sNow?'burn':''}">${spiral}회</b>
+      <span>${sNow ? `· 라운드마다 양쪽 -${sNow}점` : `· ${RULES.sFree}회 넘으면 양쪽 감점`}</span></div>
+     <div><span>AI의 일방적 배신</span> <b>${eb}회</b></div>`;
+}
+function renderChat() {
+  $('rightTitle').textContent = M && M.cond === 'chat' ? '주고받은 말' : '대국 기록';
+  if (!M || !M.turns.length) { $('rightBox').innerHTML = `<p class="empty">${M && M.cond === 'chat' ? '아직 대화가 없다' : '이번 판은 대화 없이 진행된다'}</p>`; return; }
+  if (M.cond !== 'chat') { $('rightBox').innerHTML = '<p class="empty">이번 판은 대화 없이 진행된다. 판이 끝나면 AI의 이유가 공개된다.</p>'; return; }
+  $('rightBox').innerHTML = `<div class="chatlog">${M.turns.map(t => `
+      ${t.aiMsg ? `<div class="who">${t.round}라운드 · AI</div><div class="bubble ai">${esc(t.aiMsg)}</div>` : ''}
+      ${t.humanMsg ? `<div class="who me">나</div><div class="bubble me">${esc(t.humanMsg)}</div>` : ''}`).join('')}</div>`;
+}
+function renderReasons() {
+  $('rightTitle').textContent = 'AI가 밝힌 이유';
+  $('rightBox').innerHTML = `<table><thead><tr><th>#</th><th>나</th><th>AI</th><th>AI의 이유${M.cond === 'chat' ? ' · 주고받은 말' : ''}</th></tr></thead><tbody>
+    ${M.turns.map(t => `<tr><td class="n">${t.round}</td>
+      <td class="mv"><b class="tag ${t.human}">${KO[t.human]}</b></td>
+      <td class="mv"><b class="tag ${t.ai}">${KO[t.ai]}</b></td>
+      <td>${t.fallback ? '<span style="color:var(--muted)">(답을 못 해 기본 수로 대신함)</span>' : esc(t.reason || '—')}
+        ${M.cond === 'chat' && t.aiMsg ? `<br><span style="color:var(--ai)">AI: ${esc(t.aiMsg)}</span>` : ''}
+        ${M.cond === 'chat' && t.humanMsg ? `<br><span style="color:var(--muted)">나: ${esc(t.humanMsg)}</span>` : ''}</td></tr>`).join('')}
+    </tbody></table>
+    <p class="note">AI가 적은 이유가 실제 판단 과정과 정확히 같다는 보장은 없다. AI가 스스로 그렇게 설명했을 뿐이다.</p>`;
+}
+function renderSetup() {
+  $('rightTitle').textContent = 'AI 연결';
+  $('rightBox').innerHTML = `<div class="setup">
+    <p><b style="color:var(--bad)">AI에 연결되지 않았다.</b> 이 대결은 LM Studio가 켜진 연구실 노트북에서만 할 수 있다.</p>
+    <ol>
+      <li>LM Studio에서 <code>EXAONE 3.5 7.8B Instruct</code> 모델을 불러온다(Load).</li>
+      <li>왼쪽 <b>Developer</b> 탭에서 서버를 켠다(<b>Start Server</b>, 상태가 Running).</li>
+      <li>서버 설정에서 <b>Enable CORS</b>를 켠다.</li>
+      <li>주소가 <code>${esc(LLM.url)}</code>인지 확인한다.</li>
+      <li>브라우저가 "로컬 네트워크의 기기에 접근"을 물으면 <b>허용</b>한다.</li>
+    </ol>
+    <button class="b-ghost" id="btnRetry">다시 연결</button></div>`;
+  $('btnRetry').onclick = boot;
+}
+function renderResearch() {
+  if (!RESEARCHER) return;
+  $('research').style.display = 'block';
+  $('cfgUrl').value = LLM.url;
+  $('cfgModel').innerHTML = llmModels.length
+    ? llmModels.map(id => `<option ${id === LLM.model ? 'selected' : ''}>${esc(id)}</option>`).join('')
+    : '<option>(없음)</option>';
+}
+
+/* ═══════════════════════════════════════════════
+   6. 시작
+   ═══════════════════════════════════════════════ */
+function openGate() { $('gatePid').textContent = '참가 코드 ' + meta.pid; $('gate').style.display = 'flex'; }
+$('btnConsent').onclick = () => { meta.aiConsentAt = stamp(); saveMeta(); $('gate').style.display = 'none'; boot(); };
+$('btnC').onclick = () => play('C');
+$('btnD').onclick = () => play('D');
+$('btnSay').onclick = () => sendSay(false);
+$('btnSilent').onclick = () => sendSay(true);
+$('sayText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendSay(false); } });
+$('btnNext').onclick = newMatch;
+$('btnStart').onclick = newMatch;
+$('btnRecheck').onclick = boot;
+$('cfgUrl').onchange = () => { LLM.url = $('cfgUrl').value.trim(); boot(); };
+$('cfgModel').onchange = () => { LLM.model = $('cfgModel').value; setStatus('ok', `AI 연결됨 · ${LLM.model}`); };
+$('btnNewPid').onclick = () => {
+  if (M && !M.done && M.turns.length && !confirm('진행 중인 판이 저장되지 않는다. 새 참가자로 시작할까?')) return;
+  meta = freshMeta(); saveMeta(); M = null;
+  $('log').innerHTML = ''; $('verdict').innerHTML = ''; $('sceneBox').innerHTML = '';
+  $('choices').style.display = 'none'; $('sayBox').style.display = 'none'; $('btnNext').style.display = 'none';
+  openGate();
+};
+document.addEventListener('keydown', e => {
+  if (!M || M.done || document.activeElement === $('sayText')) return;
+  if (e.key === '1') play('C'); if (e.key === '2') play('D');
+});
+if (RESEARCHER || params.has('lab')) $('backLink').href = './' + location.search;
+
+async function boot() {
+  $('choices').style.display = 'none';
+  const ok = await checkLLM();
+  if (!ok) { renderSetup(); return; }
+  if (!M || M.done) {
+    $('rightTitle').textContent = 'AI 연결'; renderChat();
+    $('rightBox').innerHTML = `<p class="empty">AI 준비 완료 · ${esc(LLM.model)}</p>`;
+    $('btnStart').style.display = M ? 'none' : 'block';
+    if (M) $('btnNext').style.display = 'block';
+  } else { $('choices').style.display = 'flex'; }
+}
+
+loadMeta();
+renderResearch();
+if (!meta.aiConsentAt) openGate(); else boot();
+</script>
+</body>
+</html>

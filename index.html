@@ -144,6 +144,8 @@ td.neg{color:var(--bad)}
 .sync i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;flex:none}
 .sync i.ok{background:var(--good)} .sync i.wait{background:var(--warn)} .sync i.err{background:var(--bad)}
 .frame{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.ai-link{text-decoration:none;display:inline-block;border:1px solid #9FA8F5;color:#9FA8F5;border-radius:3px}
+.ai-link:hover{background:rgba(159,168,245,.12)}
 .scen{align-items:center;margin-top:12px;padding-top:12px}
 .scen-sel{width:auto;margin:0;padding:7px 8px;font-size:12px}
 #scenBox{margin-top:14px}
@@ -206,6 +208,7 @@ td.neg{color:var(--bad)}
       <button class="b-ghost" id="btnLeague">표본 늘리기</button>
       <button class="b-ghost" id="btnExport">데이터 내보내기</button>
       <button class="b-ghost" id="btnReset">기록 초기화</button>
+      <a class="b-ghost ai-link" id="aiLink" href="ai.html" style="display:none">생성형 인공지능과 대결하기 →</a>
     </div>
     <div class="tools scen" id="scenTools">
       <label class="wm" for="hsCount">악수 무리</label>
@@ -1210,6 +1213,12 @@ btnConsent.onclick = () => {
 /* ═══════════════════════════════════════════════
    10. 버튼 연결
    ═══════════════════════════════════════════════ */
+/* 생성형 AI 대결은 LM Studio가 켜진 연구실 노트북에서만 된다.
+   그래서 연구자 주소(?100916)나 실험실 주소(?lab)로 열었을 때만 버튼을 보인다. */
+if (RESEARCHER || new URLSearchParams(location.search).has('lab')) {
+  aiLink.style.display = 'inline-block';
+  aiLink.href = 'ai.html' + location.search;
+}
 if (!RESEARCHER) {
   btnLeague.style.display = 'none';
   btnReset.style.display  = 'none';
