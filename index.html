@@ -598,14 +598,9 @@ function newPid() {
   return (RESEARCHER ? 'R-' : 'P-') + s;           // 시트에서 연구자 테스트를 걸러내기 위해
 }
 function loadMeta() {
-  const raw = safeGet(META_KEY);
-  meta = raw ? JSON.parse(raw) : null;
-  if (!meta || !meta.pid)
-    meta = { pid:newPid(), startedAt:new Date().toISOString(), consentAt:null, matchNo:0 };
-  // 같은 브라우저로 모드를 바꿔 열면 코드도 새로 발급한다
-  const want = RESEARCHER ? 'R-' : 'P-';
-  if (!meta.pid.startsWith(want))
-    meta = { pid:newPid(), startedAt:new Date().toISOString(), consentAt:null, matchNo:0 };
+  // 접속할 때마다 새 참가자로 처리한다 — 새 코드(pid)를 발급하고 입력 화면을 다시 띄운다.
+  // (이전 접속의 프로필·동의는 이어받지 않는다. 아직 못 보낸 전송 큐만 별도로 남아 재시도된다.)
+  meta = { pid:newPid(), startedAt:new Date().toISOString(), consentAt:null, matchNo:0 };
   saveMeta();
 }
 function saveMeta() { safeSet(META_KEY, JSON.stringify(meta)); }
@@ -691,13 +686,11 @@ async function initSupabase() {
   }
   try {
     supa = window.supabase.createClient(SUPA.url, SUPA.key);
-    let { data: { session } } = await supa.auth.getSession();
-    if (!session) {
-      const { data, error } = await supa.auth.signInAnonymously();
-      if (error) throw error;
-      session = data.session;
-    }
-    supaUserId = session.user.id;
+    // 접속마다 새 익명 사용자를 만든다 — 닉네임을 매번 새로 받으므로 user_id도 방문마다 새로 발급
+    try { await supa.auth.signOut({ scope:'local' }); } catch (e) {}
+    const { data, error } = await supa.auth.signInAnonymously();
+    if (error) throw error;
+    supaUserId = data.session.user.id;
   } catch (e) {
     console.warn('Supabase 익명 로그인 실패', e);
   }
