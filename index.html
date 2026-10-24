@@ -139,6 +139,13 @@ td.neg{color:var(--bad)}
 .gate li b{color:var(--paper);font-weight:500}
 .gate .b-next{margin:0}
 .gate .off{font-size:12px;color:var(--muted);margin-top:12px;text-align:center}
+.gate .field{margin-bottom:12px}
+.gate label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.gate input[type=text]{width:100%;font-family:var(--sans);font-size:14px;padding:10px;
+  background:var(--ink);color:var(--paper);border:1px solid var(--line);border-radius:3px}
+.gate input[type=text]:focus-visible{outline:2px solid var(--warn);outline-offset:1px}
+.gate .field select{margin-bottom:0}
+.gate .err{color:var(--bad);font-size:12px;min-height:18px;margin-bottom:10px}
 .sync{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px;
   display:flex;align-items:center;gap:6px}
 .sync i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;flex:none}
@@ -155,15 +162,37 @@ td.neg{color:var(--bad)}
 <body>
 <div class="gate" id="gate" style="display:none"><div class="box">
   <h3>실험 참가 안내</h3>
-  <p class="pid" id="gatePid"></p>
   <ul>
     <li>이 게임은 <b>어떤 전략이 유리한지</b>를 알아보는 학생 연구 프로젝트입니다.</li>
-    <li>기록되는 것: <b>매 라운드의 선택, 상황 종류, 점수, 결정에 걸린 시간</b>.</li>
-    <li>기록되지 않는 것: <b>이름, 이메일, 위치, 그 밖의 어떤 개인정보도</b>.
-        위에 있는 참가 코드만 붙습니다.</li>
-    <li>데이터는 연구자의 구글 스프레드시트에 저장되며 <b>이 프로젝트 발표에만</b> 쓰입니다.</li>
-    <li>언제든 창을 닫으면 참여가 끝납니다. 불이익은 없습니다.</li>
+    <li>기록되는 것: <b>매 라운드의 선택, 상황 종류, 점수, 결정에 걸린 시간</b>,
+        그리고 아래에 적는 <b>닉네임·성별·연령대</b>.</li>
+    <li>기록되지 않는 것: <b>실명, 이메일, 위치, 그 밖의 개인정보</b>.
+        닉네임은 <b>실명이 아닌 별명</b>으로 적어 주세요.</li>
+    <li>데이터는 연구자의 구글 스프레드시트와 데이터베이스에 저장되며 <b>이 프로젝트 발표에만</b> 쓰입니다.
+        발표 자료에는 닉네임을 싣지 않습니다.</li>
+    <li>성별·연령대는 <b>'응답 안 함'</b>을 고를 수 있습니다. 언제든 창을 닫으면 참여가 끝나며 불이익은 없습니다.</li>
   </ul>
+  <div class="field"><label for="inNick">닉네임 (1~12자 · 한글, 영문, 숫자, 공백, _ . - 만 가능)</label>
+    <input type="text" id="inNick" maxlength="12" autocomplete="off"></div>
+  <div class="field"><label for="inGender">성별</label>
+    <select id="inGender">
+      <option value="">선택해 주세요</option>
+      <option value="남">남</option>
+      <option value="여">여</option>
+      <option value="기타">기타</option>
+      <option value="응답 안 함">응답 안 함</option>
+    </select></div>
+  <div class="field"><label for="inAge">연령대</label>
+    <select id="inAge">
+      <option value="">선택해 주세요</option>
+      <option value="10대">10대</option>
+      <option value="20대">20대</option>
+      <option value="30대">30대</option>
+      <option value="40대">40대</option>
+      <option value="50대 이상">50대 이상</option>
+      <option value="응답 안 함">응답 안 함</option>
+    </select></div>
+  <p class="err" id="gateErr"></p>
   <button class="b-next" id="btnConsent">이해했고, 참여합니다</button>
   <p class="off" id="gateOff"></p>
 </div></div>
@@ -611,6 +640,30 @@ async function flush() {
   sending = false; renderSync();
 }
 
+
+/* ═══════════════════════════════════════════════
+   4-C. 참가자 정보 — 닉네임·성별·연령대
+   기기 번호(pid)는 내부 연결용 키로만 남고, 사람 눈에 보이는 이름은 닉네임이다.
+   닉네임은 시트 수식·HTML로 해석되지 않도록 첫 글자와 사용 가능한 문자를 제한한다.
+   (서버 쪽 participants 테이블에도 같은 규칙이 CHECK로 걸려 있어 이중으로 막는다.)
+   ═══════════════════════════════════════════════ */
+const NICK_RE = /^[0-9A-Za-z가-힣ㄱ-ㅎㅏ-ㅣ][0-9A-Za-z가-힣ㄱ-ㅎㅏ-ㅣ _.\-]{0,11}$/;
+const GENDERS = ['남', '여', '기타', '응답 안 함'];
+const AGES    = ['10대', '20대', '30대', '40대', '50대 이상', '응답 안 함'];
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function checkProfile(nick, gender, age) {
+  if (!nick) return '닉네임을 입력해 주세요.';
+  if (!NICK_RE.test(nick))
+    return '닉네임은 1~12자의 한글·영문·숫자로 시작하고, 공백·_ . - 만 쓸 수 있습니다.';
+  if (!GENDERS.includes(gender)) return '성별을 선택해 주세요.';
+  if (!AGES.includes(age)) return '연령대를 선택해 주세요.';
+  return '';
+}
+
 /* ═══════════════════════════════════════════════
    4-C. Supabase 전송 (Apps Script와 병행 운영)
 
@@ -677,10 +730,32 @@ async function supaInsert(table, rows) {
   if (error) throw error;
 }
 
+// 사람당 한 번 저장한다. 이미 있으면(23505) 성공으로 친다. 실패하면 다음 판 끝에 다시 시도한다.
+async function supaSaveProfile() {
+  await supaReady;
+  if (!supa || !supaUserId || !meta || !meta.profile || meta.supaProfileSent) return;
+  try {
+    const { error } = await supa.from('participants').insert({
+      user_id: supaUserId,
+      pid: meta.pid,
+      nickname: meta.profile.nickname,
+      gender: meta.profile.gender,
+      age_group: meta.profile.ageGroup,
+      is_researcher: RESEARCHER,
+      consent_at: meta.consentAt,
+    });
+    if (error && error.code !== '23505') throw error;
+    meta.supaProfileSent = true; saveMeta();
+  } catch (e) {
+    console.warn('Supabase 참가자 정보 저장 실패 (다음 판 종료 시 재시도)', e);
+  }
+}
+
 // 판 하나(세션 + 그 안의 모든 라운드)를 한 번에 저장한다
 async function supaSaveMatch(match) {
   await supaReady;
   if (!supa || !supaUserId || !match.supaId) return;
+  await supaSaveProfile();
   try {
     await supaInsert('sessions', {
       id: match.supaId,
@@ -1193,21 +1268,36 @@ function renderSync() {
   const cls = sending ? 'wait' : syncState.ok === true ? 'ok'
             : syncState.ok === false ? 'err' : '';
   const msg = n ? `대기 ${n}행` : (syncState.msg || '보낼 것 없음');
-  syncBox.innerHTML = `<i class="${cls}"></i><span>${meta ? meta.pid : ''} · ${msg}</span>`;
+  syncBox.innerHTML = `<i class="${cls}"></i><span>${meta && meta.profile ? esc(meta.profile.nickname) : (meta ? meta.pid : '')} · ${msg}</span>`;
 }
 
 function openGate() {
-  gatePid.textContent = '참가 코드 ' + meta.pid;
+  if (meta.profile) {                               // 이전에 적은 값이 있으면 채워 둔다
+    inNick.value = meta.profile.nickname;
+    inGender.value = meta.profile.gender;
+    inAge.value = meta.profile.ageGroup;
+  }
+  gateErr.textContent = '';
   gateOff.textContent = SYNC.on && SYNC.url ? '' : '(지금은 전송이 꺼져 있습니다)';
   gate.style.display = 'flex';
 }
 btnConsent.onclick = () => {
+  const nick = inNick.value.trim(), gender = inGender.value, age = inAge.value;
+  const msg = checkProfile(nick, gender, age);
+  if (msg) { gateErr.textContent = msg; return; }
+  gateErr.textContent = '';
+
+  meta.profile = { nickname: nick, gender: gender, ageGroup: age };
+  meta.supaProfileSent = false;
   meta.consentAt = stamp(); saveMeta();
   enqueue('sessions', [meta.pid, meta.startedAt, meta.consentAt,
     `${screen.width}x${screen.height}`,
-    JSON.stringify(RULES), JSON.stringify(WORLD), RULES_VER]);
+    JSON.stringify(RULES), JSON.stringify(WORLD), RULES_VER,
+    nick, gender, age]);                              // 시트의 sessions 맨 뒤 3열
   gate.style.display = 'none';
+  renderSync();
   flush();
+  supaSaveProfile();
 };
 
 /* ═══════════════════════════════════════════════
@@ -1257,7 +1347,7 @@ document.addEventListener('keydown', e => {
 
 loadMeta(); load(); newMatch();
 renderMap(); renderRank(); renderWorld(); renderSync();
-if (!meta.consentAt) openGate();
+if (!meta.consentAt || !meta.profile) openGate();
 flush();
 window.addEventListener('online', flush);
 </script>
