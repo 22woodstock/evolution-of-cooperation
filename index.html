@@ -145,7 +145,8 @@ td.neg{color:var(--bad)}
   background:var(--ink);color:var(--paper);border:1px solid var(--line);border-radius:3px}
 .gate input[type=text]:focus-visible{outline:2px solid var(--warn);outline-offset:1px}
 .gate .field select{margin-bottom:0}
-.gate .hint{font-size:12px;color:var(--warn);margin-top:6px}
+.gate .hint{font-size:24px;font-weight:700;line-height:1.4;color:var(--paper);margin-top:10px;padding:12px 14px;border:3px solid #E5484D;border-radius:4px}
+.gate .hint b{color:#FF6B6B}
 .gate .err{color:var(--bad);font-size:12px;min-height:18px;margin-bottom:10px}
 .sync{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px;
   display:flex;align-items:center;gap:6px}
@@ -175,7 +176,7 @@ td.neg{color:var(--bad)}
   </ul>
   <div class="field"><label for="inNick">닉네임 (1~12자 · 한글, 영문, 숫자, 공백, _ . - 만 가능)</label>
     <input type="text" id="inNick" maxlength="12" autocomplete="off">
-    <p class="hint">이전에 참여한 적이 있다면 <b>그때 쓴 닉네임을 똑같이</b> 입력해 주세요. (같은 사람의 기록을 이어서 보기 위해서입니다)</p></div>
+    <p class="hint">이전에 참여한 적이 있다면 <b>그때 쓴 닉네임을 똑같이</b> 입력해 주세요.</p></div>
   <div class="field"><label for="inGender">성별</label>
     <select id="inGender">
       <option value="">선택해 주세요</option>
