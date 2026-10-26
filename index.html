@@ -162,9 +162,9 @@ td.neg{color:var(--bad)}
 
 /* 전략 표 — 화면이 아주 넓으면 왼쪽 빈 여백에 고정, 그보다 좁으면 본문 아래에 접힌 카드로 */
 .dex{max-width:1120px;margin:20px auto 0}
-.dex details{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:14px 16px}
-.dex summary{cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--muted);
-  letter-spacing:.08em;list-style:none}
+.dex details{background:var(--panel);border:2px solid #E8B64C;border-radius:4px;padding:14px 16px}
+.dex summary{cursor:pointer;font-family:var(--mono);font-size:18px;font-weight:700;color:var(--paper);
+  letter-spacing:.04em;list-style:none}
 .dex summary::-webkit-details-marker{display:none}
 .dex summary::before{content:'▸ '} .dex details[open] summary::before{content:'▾ '}
 .dex-scroll{margin-top:12px;overflow-x:auto}
@@ -1458,7 +1458,7 @@ document.addEventListener('keydown', e => {
 
 /* 전략 표: 상대 전략을 알려 주면 블라인드 실험이 깨지므로 기본은 연구자 주소에서만 보인다.
    모든 참가자에게 보이려면 아래 값을 true로 바꾼다. */
-const SHOW_STRATEGY_TABLE_TO_ALL = false;
+const SHOW_STRATEGY_TABLE_TO_ALL = true;
 if (RESEARCHER || SHOW_STRATEGY_TABLE_TO_ALL) {
   stratDex.style.display = '';
   dexDet.open = window.matchMedia('(min-width:1800px)').matches;   // 넓은 화면에서만 처음부터 펼친다
