@@ -159,6 +159,32 @@ td.neg{color:var(--bad)}
 .scen-sel{width:auto;margin:0;padding:7px 8px;font-size:12px}
 #scenBox{margin-top:14px}
 #scenBox td.up{color:var(--good)} #scenBox td.down{color:var(--bad)}
+
+/* 전략 표 — 화면이 아주 넓으면 왼쪽 빈 여백에 고정, 그보다 좁으면 본문 아래에 접힌 카드로 */
+.dex{max-width:1120px;margin:20px auto 0}
+.dex details{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:14px 16px}
+.dex summary{cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--muted);
+  letter-spacing:.08em;list-style:none}
+.dex summary::-webkit-details-marker{display:none}
+.dex summary::before{content:'▸ '} .dex details[open] summary::before{content:'▾ '}
+.dex-scroll{margin-top:12px;overflow-x:auto}
+.dex table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.5}
+.dex th,.dex td{border-top:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}
+.dex thead th{white-space:nowrap;border-top:0;color:var(--muted);font-family:var(--mono);font-size:10.5px;font-weight:600}
+.dex tbody th{font-weight:600;color:var(--paper);white-space:nowrap}
+.dex tbody th small{display:block;font-family:var(--mono);font-weight:400;font-size:10px;color:var(--warn)}
+.dex td.f{white-space:nowrap;color:var(--muted)}
+.dex td{color:var(--paper)}
+.dex-note{font-size:11px;color:var(--muted);margin-top:10px}
+@media(max-width:600px){
+  .dex{margin-top:16px}
+  .dex tbody th{white-space:normal}
+  .dex table{font-size:11.5px}
+}
+@media(min-width:1800px){
+  .dex{position:fixed;left:16px;top:20px;margin:0;width:calc((100vw - 1120px)/2 - 40px);max-width:460px;
+    max-height:calc(100vh - 40px);overflow-y:auto}
+}
 </style>
 </head>
 <body>
@@ -256,6 +282,32 @@ td.neg{color:var(--bad)}
   </section>
 </div>
 </div>
+<aside class="dex" id="stratDex" style="display:none">
+  <details id="dexDet">
+    <summary>전략 14개의 알고리즘</summary>
+    <div class="dex-scroll"><table>
+      <thead><tr><th>전략</th><th>첫 수</th><th>다음 수를 정하는 규칙</th></tr></thead>
+      <tbody>
+      <tr><th scope="row">무조건 협력<small>ALLC</small></th><td class="f">협력</td><td>항상 협력</td></tr>
+      <tr><th scope="row">무조건 배신<small>ALLD</small></th><td class="f">배신</td><td>항상 배신</td></tr>
+      <tr><th scope="row">팃포탯<small>TFT</small></th><td class="f">협력</td><td>상대의 직전 수를 그대로 따라 한다</td></tr>
+      <tr><th scope="row">의심 많은 팃포탯<small>STFT</small></th><td class="f">배신</td><td>첫 수만 배신하고 이후는 팃포탯과 같다</td></tr>
+      <tr><th scope="row">두 번 참는 팃포탯<small>TF2T</small></th><td class="f">협력</td><td>상대가 연속 2번 배신했을 때만 배신한다</td></tr>
+      <tr><th scope="row">뉘우치는 팃포탯<small>CTFT</small></th><td class="f">협력</td><td>팃포탯처럼 갚되, 내가 먼저 잘못해서 상대가 보복하는 경우엔 되갚지 않고 협력한다. 기록에서 '떳떳한 상태'를 계산해 판단한다</td></tr>
+      <tr><th scope="row">너그러운 팃포탯<small>GTFT</small></th><td class="f">협력</td><td>팃포탯처럼 따라 하되, 상대가 배신했어도 10% 확률로 협력한다</td></tr>
+      <tr><th scope="row">그림 트리거<small>GRIM</small></th><td class="f">협력</td><td>상대가 한 번이라도 배신한 적이 있으면 끝까지 배신한다</td></tr>
+      <tr><th scope="row">파블로프<small>PAVLOV</small></th><td class="f">협력</td><td>상대가 협력했으면 내 직전 수를 유지하고, 배신했으면 내 수를 바꾼다</td></tr>
+      <tr><th scope="row">탐색꾼<small>PROBER</small></th><td class="f">배신</td><td>배신, 협력, 협력으로 시작한다. 상대가 2·3수에서 모두 협력했으면 계속 배신하고, 아니면 팃포탯으로 돌아간다</td></tr>
+      <tr><th scope="row">다수결<small>MAJO</small></th><td class="f">협력</td><td>지금까지 상대의 협력 횟수가 배신 횟수보다 많거나 같으면 협력한다</td></tr>
+      <tr><th scope="row">번갈이<small>ALT</small></th><td class="f">협력</td><td>협력과 배신을 한 번씩 번갈아 낸다</td></tr>
+      <tr><th scope="row">랜덤<small>RAND</small></th><td class="f">랜덤</td><td>매번 50% 확률로 협력하거나 배신한다</td></tr>
+      <tr><th scope="row">학습형<small>LEARN</small></th><td class="f">협력</td><td>상대가 직전 결과(CC·CD·DC·DD) 뒤에 협력할 확률을 관찰해 추정한다(마르코프 1단계). 그 추정으로 앞으로 5라운드를 내다보고, 제재까지 포함한 기대 점수가 가장 큰 수를 고른다. 5번째 라운드까지 서로 협력만 했다면 한 번 배신해서 상대를 떠본다</td></tr>
+      </tbody>
+    </table></div>
+    <p class="dex-note">모든 전략은 지금까지의 내 기록과 상대 기록만 보고 수를 정한다. 상황 문구는 보지 않는다.
+      PROBER·MAJO·ALT·LEARN은 이 프로젝트에서 정한 이름이다.</p>
+  </details>
+</aside>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 /* ═══════════════════════════════════════════════
@@ -1402,6 +1454,15 @@ btnReset.onclick = () => {
 document.addEventListener('keydown', e => {
   if (M && !M.done) { if (e.key === '1') play('C'); if (e.key === '2') play('D'); }
 });
+
+
+/* 전략 표: 상대 전략을 알려 주면 블라인드 실험이 깨지므로 기본은 연구자 주소에서만 보인다.
+   모든 참가자에게 보이려면 아래 값을 true로 바꾼다. */
+const SHOW_STRATEGY_TABLE_TO_ALL = false;
+if (RESEARCHER || SHOW_STRATEGY_TABLE_TO_ALL) {
+  stratDex.style.display = '';
+  dexDet.open = window.matchMedia('(min-width:1800px)').matches;   // 넓은 화면에서만 처음부터 펼친다
+}
 
 loadMeta(); load(); newMatch();
 renderMap(); renderRank(); renderWorld(); renderSync();
