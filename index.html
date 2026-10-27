@@ -185,6 +185,19 @@ td.neg{color:var(--bad)}
   .dex{position:fixed;left:16px;top:20px;margin:0;width:calc((100vw - 1120px)/2 - 40px);max-width:460px;
     max-height:calc(100vh - 40px);overflow-y:auto}
 }
+
+/* 두 번째 안내 화면 — 점수 부여 방식 */
+.gate .box.wide{max-width:640px;width:100%}
+.gate .tt{font-size:13px;font-weight:700;color:var(--paper);margin:16px 0 8px}
+.gate .tbl-wrap{overflow-x:auto}
+.gate table{width:100%;border-collapse:collapse;font-size:13px;line-height:1.5}
+.gate th,.gate td{border:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+.gate thead th{background:var(--panel2);color:var(--muted);font-family:var(--mono);font-size:11px;font-weight:600}
+.gate tbody th{font-weight:600;color:var(--paper)}
+.gate td.c{text-align:center;font-family:var(--mono)}
+.gate .retal{font-size:13px;color:var(--muted);margin:14px 0 18px}
+.gate .retal b{color:var(--paper)}
+@media(max-width:600px){.gate{padding:14px}.gate .box{padding:18px}.gate table{font-size:12px}.gate th,.gate td{padding:6px}}
 </style>
 </head>
 <body>
@@ -224,6 +237,30 @@ td.neg{color:var(--bad)}
   <p class="err" id="gateErr"></p>
   <button class="b-next" id="btnConsent">이해했고, 참여합니다</button>
   <p class="off" id="gateOff"></p>
+</div></div>
+
+<div class="gate" id="gate2" style="display:none"><div class="box wide">
+  <h3>점수는 이렇게 매겨집니다</h3>
+  <p class="pid" style="color:var(--muted)">게임을 시작하기 전에 한 번 읽어 주세요.</p>
+  <p class="tt">기본 점수 (나 · 상대)</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>나 \ 상대</th><th>협력</th><th>배신</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">협력</th><td class="c">3 · 3</td><td class="c">0 · 5</td></tr>
+      <tr><th scope="row">배신</th><td class="c">5 · 0</td><td class="c">1 · 1</td></tr>
+    </tbody>
+  </table></div>
+  <p class="tt">제재 벌점 (기본 점수에서 깎임)</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>벌점</th><th>조건</th><th>계산</th><th>깎이는 참가자</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">① 착취</th><td>상대는 협력했는데 나만 배신한 누적 횟수</td><td>3번까지는 면제, 4번째부터 (횟수−3)점, 최대 4점</td><td>착취한 쪽만</td></tr>
+      <tr><th scope="row">② 갈등</th><td>맞배신이 연속된 횟수</td><td>4번까지는 면제, 5번째부터 (연속 횟수−4)점, 최대 3점</td><td>양쪽</td></tr>
+      <tr><th scope="row">③ 보복자 경감</th><td>갈등을 먼저 일으키지 않은 쪽</td><td>②의 벌점을 25%만 부담</td><td>보복한 쪽</td></tr>
+    </tbody>
+  </table></div>
+  <p class="retal"><b>보복자 경감:</b> 상대가 먼저 배신해서 내가 보복하다 맞배신이 이어졌을 때, 먼저 시작한 쪽은 벌점 100%, 보복한 쪽은 25%만 받습니다. "당하면 갚는" 전략이 억울하게 벌점을 받지 않게 하려는 장치입니다. 누가 먼저인지 분명하지 않은 경우(첫 라운드부터 맞배신, 동시에 깨짐)는 둘 다 100%를 받습니다.</p>
+  <button class="b-next" id="btnStart">이해했습니다, 게임 시작</button>
 </div></div>
 
 <div class="wrap">
@@ -1405,10 +1442,13 @@ btnConsent.onclick = () => {
     JSON.stringify(RULES), JSON.stringify(WORLD), RULES_VER,
     nick, gender, age]);                              // 시트의 sessions 맨 뒤 3열
   gate.style.display = 'none';
+  gate2.style.display = 'flex';                     // 다음 화면: 점수 부여 방식 안내
+  gate2.scrollTop = 0;
   renderSync();
   flush();
   supaSaveProfile();
 };
+btnStart.onclick = () => { gate2.style.display = 'none'; };
 
 /* ═══════════════════════════════════════════════
    10. 버튼 연결
