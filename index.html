@@ -198,6 +198,25 @@ td.neg{color:var(--bad)}
 .gate .retal{font-size:13px;color:var(--muted);margin:14px 0 18px}
 .gate .retal b{color:var(--paper)}
 @media(max-width:600px){.gate{padding:14px}.gate .box{padding:18px}.gate table{font-size:12px}.gate th,.gate td{padding:6px}}
+
+/* 랭킹 */
+.lb{margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.lb h3{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.1em;
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.lb h3 button{font-size:11px;padding:2px 8px;width:auto;margin:0}
+.lb-row{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:baseline;padding:6px 0;
+  border-top:1px solid var(--line);font-size:13px}
+.lb-row:first-of-type{border-top:0}
+.lb-row .no{font-family:var(--mono);color:var(--warn);font-weight:700}
+.lb-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-row .nm small{color:var(--muted);font-size:11px;margin-left:6px}
+.lb-row .av{font-family:var(--mono);font-weight:700}
+.lb-row.me{background:var(--panel2)}
+.lb-empty{font-size:12px;color:var(--muted)}
+.lb-act{margin-bottom:14px;font-size:13px}
+.lb-act p{color:var(--muted);margin-bottom:8px}
+.lb-act .b-next{margin:0 0 8px}
+.lb-act .msg{font-size:12px;color:var(--warn);min-height:16px}
 </style>
 </head>
 <body>
@@ -290,11 +309,13 @@ td.neg{color:var(--bad)}
       <button class="opt b-c" id="btnC"><span class="k">1</span><span id="txtC"></span></button>
       <button class="opt b-d" id="btnD"><span class="k">2</span><span id="txtD"></span></button>
     </div>
+    <div class="lb-act" id="lbAct"></div>
     <button class="b-next" id="btnNext" style="display:none">다음 상대</button>
     <div class="log" id="log"></div>
   </section>
   <section class="card">
     <h2><span>필지 지도 · 400칸</span><span id="mapStat"></span></h2>
+    <div class="lb" id="lbBox" style="display:none"></div>
     <div class="world" id="worldBox"></div>
     <div class="map" id="map"></div>
     <div id="rank"></div>
@@ -901,7 +922,7 @@ async function supaSaveProfile() {
 // 판 하나(세션 + 그 안의 모든 라운드)를 한 번에 저장한다
 async function supaSaveMatch(match) {
   await supaReady;
-  if (!supa || !supaUserId || !match.supaId) return;
+  if (!supa || !supaUserId || !match.supaId) return false;
   await supaSaveProfile();
   try {
     await supaInsert('sessions', {
@@ -925,9 +946,111 @@ async function supaSaveMatch(match) {
       const { error: wErr } = await supa.from('world_cycles').insert(match.supaWorldRows);
       if (wErr) throw wErr;
     }
+    return true;
   } catch (e) {
     console.warn('Supabase 저장 실패 (Apps Script 쪽 데이터는 영향 없음)', e);
+    return false;
   }
+}
+
+
+/* ═══════════════════════════════════════════════
+   4-E. 랭킹 — 라운드당 평균 점수 TOP 5
+   · 올리기·내리기는 Supabase 함수(submit_score, withdraw_score)만 쓴다.
+     점수는 브라우저가 보내지 않고, 서버가 sessions에 저장된 값으로 계산한다.
+   · 한 접속(익명 사용자)당 1번만 올릴 수 있다. 내리면 다시 올릴 수 있다.
+   ═══════════════════════════════════════════════ */
+let lbPosted = null;      // 이번 접속에서 올린 기록 { id, avg } — 없으면 null
+let lbBusy = false;
+
+async function lbLoad() {
+  await supaReady;
+  if (!supa) { lbBox.style.display = 'none'; return; }
+  lbBox.style.display = '';
+  let html = '';
+  try {
+    const { data, error } = await supa.from('leaderboard')
+      .select('nickname,opponent_strategy,total_rounds,avg_per_round')
+      .order('avg_per_round', { ascending: false }).limit(5);
+    if (error) throw error;
+    const me = meta && meta.profile ? meta.profile.nickname : null;
+    html = data.length
+      ? data.map((r, i) => {
+          const st = STRATEGIES[r.opponent_strategy];
+          return `<div class="lb-row${r.nickname === me ? ' me' : ''}"><span class="no">${i + 1}</span>
+            <span class="nm">${esc(r.nickname)}<small>${st ? esc(st.name) : ''} 상대</small></span>
+            <span class="av">${Number(r.avg_per_round).toFixed(2)}</span></div>`; }).join('')
+      : '<p class="lb-empty">아직 올라온 기록이 없다.</p>';
+  } catch (e) {
+    console.warn('랭킹을 불러오지 못했다', e);
+    html = '<p class="lb-empty">랭킹을 불러오지 못했다.</p>';
+  }
+  lbBox.innerHTML = `<h3><span>랭킹 · 라운드당 평균 TOP 5</span>
+    <button class="b-ghost" id="btnLbRefresh">새로고침</button></h3>${html}`;
+  btnLbRefresh.onclick = lbLoad;
+}
+
+function lbErrText(e) {
+  const m = String((e && e.message) || '');
+  if (m.includes('already submitted')) return '이번 접속에서는 이미 기록을 올렸다. 먼저 내려야 다시 올릴 수 있다.';
+  if (m.includes('session not found')) return '이 판이 서버에 저장되지 않아 올릴 수 없다.';
+  if (m.includes('ai match')) return '인공지능 대결 기록은 올릴 수 없다.';
+  return '처리하지 못했다. 잠시 뒤 다시 눌러 보자.';
+}
+
+// 판이 끝나고 상대가 공개된 뒤에 올리기·내리기 버튼을 보여 준다
+async function renderLbAct() {
+  const m = M;
+  if (!m || !m.revealed || !SUPA.on) { lbAct.innerHTML = ''; return; }
+  await supaReady;
+  if (!supa) { lbAct.innerHTML = ''; return; }
+  const avg = (m.myScore / m.total).toFixed(2);
+
+  if (lbPosted) {
+    const same = lbPosted.id === m.supaId;
+    lbAct.innerHTML = `<p>${same ? `이 판 기록(라운드당 ${lbPosted.avg}점)이 랭킹에 올라가 있다.`
+      : `이번 접속에서 라운드당 ${lbPosted.avg}점인 다른 판 기록을 이미 올렸다. 새 기록을 올리려면 먼저 내려야 한다.`}</p>
+      <button class="b-ghost" id="btnLbDown">내 기록 내리기</button><div class="msg" id="lbNote"></div>`;
+    document.getElementById('btnLbDown').onclick = lbWithdraw;
+    return;
+  }
+  lbAct.innerHTML = `<button class="b-next" id="btnLbUp" disabled>이 판을 랭킹에 올리기 (라운드당 ${avg}점)</button>
+    <div class="msg" id="lbNote">저장 중…</div>`;
+  const up = document.getElementById('btnLbUp'), note = document.getElementById('lbNote');
+  const ok = await m.supaSavedP;
+  if (M !== m || lbPosted) return;              // 그 사이 다음 판으로 넘어갔거나 이미 올렸다
+  if (!ok) { note.textContent = '이 판이 서버에 저장되지 않아 올릴 수 없다.'; return; }
+  note.textContent = '';
+  up.disabled = false;
+  up.onclick = async () => {
+    if (lbBusy) return; lbBusy = true; up.disabled = true; note.textContent = '올리는 중…';
+    try {
+      const { error } = await supa.rpc('submit_score', { p_session_id: m.supaId });
+      if (error) throw error;
+      lbPosted = { id: m.supaId, avg };
+      await lbLoad();
+      if (M === m) renderLbAct();
+    } catch (e) {
+      console.warn('랭킹 올리기 실패', e);
+      note.textContent = lbErrText(e); up.disabled = false;
+    } finally { lbBusy = false; }
+  };
+}
+
+async function lbWithdraw() {
+  if (lbBusy) return; lbBusy = true;
+  const el = document.getElementById('lbNote'); if (el) el.textContent = '내리는 중…';
+  try {
+    const { error } = await supa.rpc('withdraw_score');
+    if (error) throw error;
+    lbPosted = null;
+    await lbLoad();
+  } catch (e) {
+    console.warn('랭킹 내리기 실패', e);
+    const el2 = document.getElementById('lbNote'); if (el2) el2.textContent = '내리지 못했다. 잠시 뒤 다시 눌러 보자.';
+    lbBusy = false; return;
+  }
+  lbBusy = false; renderLbAct();
 }
 
 /* ═══════════════════════════════════════════════
@@ -1117,7 +1240,7 @@ function newMatch() {
   oppName.className = 'oppname blind'; oppName.textContent = '???';
   oppDesc.textContent = '상대 전략은 판이 끝난 뒤에 공개된다.';
   setScore(myScore, 0); setScore(opScore, 0);
-  log.innerHTML = ''; verdict.innerHTML = ''; guessBox.innerHTML = '';
+  log.innerHTML = ''; verdict.innerHTML = ''; guessBox.innerHTML = ''; lbAct.innerHTML = '';
   choices.style.display = 'flex'; btnNext.style.display = 'none';
   btnC.disabled = btnD.disabled = false;
   nextScene(); updateRounds(); renderMeter(); renderGuessStat(); renderWorld();
@@ -1261,7 +1384,9 @@ function reveal(guessKey) {
   flush();
 
   // Supabase — 세션 1건 + 무브 전체를 한 번에 저장
-  supaSaveMatch(M);
+  M.supaSavedP = supaSaveMatch(M);
+  M.revealed = true;
+  renderLbAct();
 
   btnNext.style.display = 'block';
   save(); renderGuessStat(); renderMap(); renderRank(); renderWorld();
@@ -1505,6 +1630,7 @@ if (RESEARCHER || SHOW_STRATEGY_TABLE_TO_ALL) {
 }
 
 loadMeta(); load(); newMatch();
+supaReady.then(() => lbLoad());
 renderMap(); renderRank(); renderWorld(); renderSync();
 if (!meta.consentAt || !meta.profile) openGate();
 flush();
