@@ -199,20 +199,21 @@ td.neg{color:var(--bad)}
 .gate .retal b{color:var(--paper)}
 @media(max-width:600px){.gate{padding:14px}.gate .box{padding:18px}.gate table{font-size:12px}.gate th,.gate td{padding:6px}}
 
-/* 랭킹 */
-.lb{margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line)}
-.lb h3{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.1em;
+/* 랭킹 — 연한 노랑 배경이라 글씨는 어둡게 */
+.lb{margin-bottom:18px;padding:14px 16px;background:#FFF6C9;color:#2B2410;border-radius:4px}
+.lb h3{font-family:var(--mono);font-size:11px;font-weight:700;color:#6B5A1E;letter-spacing:.1em;
   display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.lb h3 button{font-size:11px;padding:2px 8px;width:auto;margin:0}
-.lb-row{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:baseline;padding:6px 0;
-  border-top:1px solid var(--line);font-size:13px}
+.lb h3 button{font-size:11px;padding:2px 8px;width:auto;margin:0;color:#6B5A1E;border-color:#C9B25A;background:transparent}
+.lb h3 button:hover{background:rgba(0,0,0,.06);color:#2B2410}
+.lb-row{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:baseline;padding:6px 4px;
+  border-top:1px solid rgba(0,0,0,.14);font-size:13px}
 .lb-row:first-of-type{border-top:0}
-.lb-row .no{font-family:var(--mono);color:var(--warn);font-weight:700}
+.lb-row .no{font-family:var(--mono);color:#8A5A00;font-weight:700}
 .lb-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lb-row .nm small{color:var(--muted);font-size:11px;margin-left:6px}
+.lb-row .nm small{color:#6B5A1E;font-size:11px;margin-left:6px}
 .lb-row .av{font-family:var(--mono);font-weight:700}
-.lb-row.me{background:var(--panel2)}
-.lb-empty{font-size:12px;color:var(--muted)}
+.lb-row.me{background:#FFE98A;border-radius:3px}
+.lb-empty{font-size:12px;color:#6B5A1E}
 .lb-act{margin-bottom:14px;font-size:13px}
 .lb-act p{color:var(--muted);margin-bottom:8px}
 .lb-act .b-next{margin:0 0 8px}
